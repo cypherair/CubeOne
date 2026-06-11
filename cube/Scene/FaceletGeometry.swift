@@ -31,6 +31,26 @@ nonisolated enum FaceletGeometry {
 
     static let allPlacements: [Placement] = (0..<54).map(placement(for:))
 
+    /// The middle-slice move for a rotation about `axis` with sense
+    /// `rotationSign` (sign of the angle about the positive axis).
+    /// M and E turn positively about their axes; S negatively.
+    static func sliceMove(axis: Int, rotationSign: Int) -> SliceMove? {
+        switch axis {
+        case 0: rotationSign > 0 ? .m : .mPrime
+        case 1: rotationSign > 0 ? .e : .ePrime
+        case 2: rotationSign < 0 ? .s : .sPrime
+        default: nil
+        }
+    }
+
+    /// Rotation of a slice turn (and the frame compensation the scene
+    /// applies), about the positive axis.
+    static func rotation(for slice: SliceMove) -> (axis: SIMD3<Float>, angle: Float) {
+        var axis = SIMD3<Float>(repeating: 0)
+        axis[slice.axisIndex] = 1
+        return (axis, Float(slice.signedQuarterTurns) * .pi / 2)
+    }
+
     /// The move described by turning `layer` (the signed grid component
     /// along `axis`) with rotation sense `rotationSign` (sign of the
     /// angle about the positive axis).

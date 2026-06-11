@@ -23,7 +23,7 @@ final class AppModel {
     /// Moves the user has performed since the last scramble/reset;
     /// `historyCursor` counts how many are currently applied (undo moves
     /// it back, redo forward).
-    private(set) var history: [Move] = []
+    private(set) var history: [PlayMove] = []
     private(set) var historyCursor = 0
     private(set) var userMoveCount = 0
     /// Every committed turn, for sound/haptic triggers.
@@ -295,9 +295,9 @@ final class AppModel {
 
     // MARK: Actions
 
-    /// A user drag resolved to a face turn.
-    func performUserMove(_ move: Move) {
-        enqueue(move, intent: .user, duration: settings.turnSpeed.duration)
+    /// A user drag resolved to a face or slice turn.
+    func performUserTurn(_ turn: PlayMove) {
+        enqueue(turn, intent: .user, duration: settings.turnSpeed.duration)
     }
 
     func undo() {
@@ -384,8 +384,13 @@ final class AppModel {
 
     // MARK: Commits from the scene
 
-    private func commit(_ move: Move) {
-        cubeState.apply(move)
+    private func commit(_ turn: PlayMove) {
+        switch turn {
+        case .face(let move):
+            cubeState.apply(move)
+        case .slice(let slice):
+            cubeState = cubeState.applying(slice)
+        }
         committedMoveCount += 1
         if settings.soundEnabled {
             click.play()
@@ -397,7 +402,7 @@ final class AppModel {
             if historyCursor < history.count {
                 history.removeSubrange(historyCursor...)
             }
-            history.append(move)
+            history.append(turn)
             historyCursor += 1
             userMoveCount += 1
             advanceTimer()
@@ -444,9 +449,13 @@ final class AppModel {
         timerSession = session
     }
 
-    private func enqueue(_ move: Move, intent: MoveIntent, duration: TimeInterval = 0.22) {
+    private func enqueue(_ turn: PlayMove, intent: MoveIntent, duration: TimeInterval = 0.22) {
         pendingIntents.append(intent)
-        scene.enqueue(move, duration: duration)
+        scene.enqueue(turn, duration: duration)
+    }
+
+    private func enqueue(_ move: Move, intent: MoveIntent, duration: TimeInterval = 0.22) {
+        enqueue(.face(move), intent: intent, duration: duration)
     }
 
     // MARK: Cube state persistence

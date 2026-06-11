@@ -48,10 +48,10 @@ struct CubeView: View {
         DragGesture(minimumDistance: 0)
             .targetedToAnyEntity()
             .onChanged { value in
-                if let move = model.scene.handleStickerDrag(
+                if let turn = model.scene.handleStickerDrag(
                     entity: value.entity, translation: value.gestureValue.translation)
                 {
-                    model.performUserMove(move)
+                    model.performUserTurn(turn)
                 }
             }
             .onEnded { value in

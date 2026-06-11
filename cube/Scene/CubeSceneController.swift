@@ -31,13 +31,13 @@ final class CubeSceneController {
 
     /// Called when a turn's animation completes and the move logically
     /// happened.
-    var onMoveCommitted: ((Move) -> Void)?
+    var onMoveCommitted: ((PlayMove) -> Void)?
 
     /// Disables drag-to-turn (used while solving plays back or editing).
     var allowsDirectTurns = true
 
     private struct PendingTurn {
-        let move: Move
+        let turn: PlayMove
         let duration: TimeInterval
     }
     private var queue: [PendingTurn] = []
@@ -181,15 +181,15 @@ final class CubeSceneController {
 
     // MARK: Turn animation
 
-    func enqueue(_ move: Move, duration: TimeInterval = 0.22) {
-        queue.append(PendingTurn(move: move, duration: duration))
+    func enqueue(_ turn: PlayMove, duration: TimeInterval = 0.22) {
+        queue.append(PendingTurn(turn: turn, duration: duration))
         isIdle = false
         processQueue()
     }
 
     func enqueue(_ moves: [Move], duration: TimeInterval) {
         guard !moves.isEmpty else { return }
-        queue.append(contentsOf: moves.map { PendingTurn(move: $0, duration: duration) })
+        queue.append(contentsOf: moves.map { PendingTurn(turn: .face($0), duration: duration) })
         isIdle = false
         processQueue()
     }
@@ -206,7 +206,16 @@ final class CubeSceneController {
     }
 
     private func animate(_ turn: PendingTurn) {
-        let (axis, angle, layer) = FaceletGeometry.rotation(for: turn.move)
+        let axis: SIMD3<Float>
+        let angle: Float
+        let layer: Int
+        switch turn.turn {
+        case .face(let move):
+            (axis, angle, layer) = FaceletGeometry.rotation(for: move)
+        case .slice(let slice):
+            (axis, angle) = FaceletGeometry.rotation(for: slice)
+            layer = 0
+        }
         let axisIndex = FaceletGeometry.axisIndex(of: axis)
 
         let pivot = Entity()
@@ -225,14 +234,32 @@ final class CubeSceneController {
             pivot.transform = target
             for cubelet in participants {
                 cubelet.setParent(self.cubeRoot, preservingWorldTransform: true)
-                self.snapTransform(of: cubelet)
             }
             pivot.removeFromParent()
+
+            if case .slice = turn.turn {
+                // Re-express the slice turn in fixed-center terms: rotate
+                // the whole cube by the slice rotation and counter-rotate
+                // every cubelet. Net visual change: none. The slice's own
+                // cubelets return to their original transforms (centers
+                // never move in the model); the outer layers end exactly
+                // where the equivalent outer-turn pair would put them.
+                let q = target.rotation
+                self.cubeRoot.orientation = self.cubeRoot.orientation * q
+                let qInverse = q.inverse
+                for cubelet in self.cubelets {
+                    cubelet.position = qInverse.act(cubelet.position)
+                    cubelet.orientation = qInverse * cubelet.orientation
+                }
+            }
+            for cubelet in self.cubelets {
+                self.snapTransform(of: cubelet)
+            }
             // Settle the queue (and isIdle) before reporting the commit,
             // so a commit handler can immediately enqueue a follow-up.
             self.isAnimating = false
             self.processQueue()
-            self.onMoveCommitted?(turn.move)
+            self.onMoveCommitted?(turn.turn)
         }
     }
 
@@ -262,9 +289,9 @@ final class CubeSceneController {
     private var dragConsumed = false
     private var orbitBlocked = false
 
-    /// Handles a drag that started on a sticker. Returns the move once
+    /// Handles a drag that started on a sticker. Returns the turn once
     /// the drag has committed to one (at most once per gesture).
-    func handleStickerDrag(entity: Entity, translation: CGSize) -> Move? {
+    func handleStickerDrag(entity: Entity, translation: CGSize) -> PlayMove? {
         // In view-only mode the whole cube surface acts as an orbit
         // handle, so sticker touches must not block orbiting.
         guard settings.lockMode != .viewOnly else { return nil }
@@ -279,9 +306,9 @@ final class CubeSceneController {
         // Current outward normal of the sticker in cube-local space.
         let normal = FaceletGeometry.snappedAxis(cubelet.orientation.act(sticker.homeNormal))
         let grid = gridPosition(of: cubelet)
-        guard let move = resolveTurn(grid: grid, normal: normal, drag: dragVector) else { return nil }
+        guard let turn = resolveTurn(grid: grid, normal: normal, drag: dragVector) else { return nil }
         dragConsumed = true
-        return move
+        return turn
     }
 
     func dragEnded() {
@@ -289,8 +316,9 @@ final class CubeSceneController {
         orbitBlocked = false
     }
 
-    /// Picks the layer turn whose on-screen motion best matches the drag.
-    private func resolveTurn(grid: SIMD3<Int>, normal: SIMD3<Int>, drag: SIMD2<Float>) -> Move? {
+    /// Picks the turn whose on-screen motion best matches the drag —
+    /// outer layers become face moves, the middle layer a slice move.
+    private func resolveTurn(grid: SIMD3<Int>, normal: SIMD3<Int>, drag: SIMD2<Float>) -> PlayMove? {
         let cameraRight = camera.orientation.act([1, 0, 0])
         let cameraUp = camera.orientation.act([0, 1, 0])
         let cubeOrientation = cubeRoot.orientation
@@ -301,16 +329,13 @@ final class CubeSceneController {
 
         let normalizedDrag = simd_normalize(drag)
         var bestScore: Float = 0.25  // minimum alignment before we commit
-        var bestMove: Move?
+        var bestTurn: PlayMove?
 
         for axisIndex in 0..<3 {
-            var axis = SIMD3<Int>(repeating: 0)
-            axis[axisIndex] = 1
             // Rotation axes parallel to the sticker normal don't move it.
             guard axisIndex != FaceletGeometry.axisIndex(of: SIMD3<Float>(
                 Float(normal.x), Float(normal.y), Float(normal.z))) else { continue }
             let layer = grid[axisIndex]
-            guard abs(layer) == 1 else { continue }
 
             var axisLocal = SIMD3<Float>(repeating: 0)
             axisLocal[axisIndex] = 1
@@ -320,13 +345,22 @@ final class CubeSceneController {
             let screen = SIMD2<Float>(simd_dot(velocity, cameraRight), simd_dot(velocity, cameraUp))
             guard simd_length(screen) > 0.05 else { continue }
             let score = simd_dot(simd_normalize(screen), normalizedDrag)
-            if abs(score) > bestScore {
+            guard abs(score) > bestScore else { continue }
+            let sign = score > 0 ? 1 : -1
+            let turn: PlayMove?
+            if abs(layer) == 1 {
+                turn = FaceletGeometry.move(
+                    axis: axisIndex, layer: layer, rotationSign: sign).map(PlayMove.face)
+            } else {
+                turn = FaceletGeometry.sliceMove(
+                    axis: axisIndex, rotationSign: sign).map(PlayMove.slice)
+            }
+            if let turn {
                 bestScore = abs(score)
-                bestMove = FaceletGeometry.move(
-                    axis: axisIndex, layer: layer, rotationSign: score > 0 ? 1 : -1)
+                bestTurn = turn
             }
         }
-        return bestMove
+        return bestTurn
     }
 
     /// Whether a freshly started background drag may orbit right now.
