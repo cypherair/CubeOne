@@ -45,9 +45,10 @@ final class CubeSceneController {
     private(set) var isIdle = true
 
     static let spacing: Float = 1.04
-    private static let cameraHome = SIMD3<Float>(3.2, 2.8, 5.2)
-    private var cameraDistance: Float = simd_length(cameraHome)
-    private let cameraDirection = simd_normalize(cameraHome)
+    private let cameraDirection = simd_normalize(SIMD3<Float>(3.2, 2.8, 5.2))
+    /// User pinch zoom, as a multiplier on the auto-fit distance.
+    private var zoomFactor: Float = 1.0
+    private var viewportAspect: Float = 1.0
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -82,7 +83,7 @@ final class CubeSceneController {
             stickerEntities[placement.faceletIndex] = sticker
         }
 
-        camera.look(at: .zero, from: Self.cameraHome, relativeTo: nil)
+        camera.look(at: .zero, from: cameraDirection * fitDistance(), relativeTo: nil)
         root.addChild(camera)
 
         let keyLight = Entity()
@@ -325,10 +326,25 @@ final class CubeSceneController {
         return bestMove
     }
 
-    /// Orbits the whole cube (drag on empty space).
-    func orbit(translationDelta: CGSize) {
-        guard !orbitBlocked else { return }
-        let sensitivity: Float = 0.008
+    /// Whether a freshly started background drag may orbit right now.
+    /// (Two-finger mode and rotation lock route around one-finger orbits.)
+    var canBeginOrbit: Bool {
+        var allowed = !orbitBlocked && !settings.rotationLock
+        #if os(iOS)
+        allowed = allowed && !settings.twoFingerOrbit
+        #endif
+        return allowed
+    }
+
+    /// Orbits the whole cube. `bypassGating` is used by the dedicated
+    /// two-finger gesture, which is unambiguous by construction.
+    func orbit(translationDelta: CGSize, bypassGating: Bool = false) {
+        if !bypassGating {
+            guard !orbitBlocked, !settings.rotationLock else { return }
+        } else {
+            guard !settings.rotationLock else { return }
+        }
+        let sensitivity = 0.008 * Float(settings.orbitSensitivity)
         let yaw = simd_quatf(
             angle: Float(translationDelta.width) * sensitivity, axis: [0, 1, 0])
         let cameraRight = camera.orientation.act([1, 0, 0])
@@ -337,10 +353,33 @@ final class CubeSceneController {
         cubeRoot.orientation = yaw * pitch * cubeRoot.orientation
     }
 
+    // MARK: Camera fit & zoom
+
+    /// Auto-fits the camera so the whole cube is visible whatever the
+    /// view's shape (fixes overflow on portrait iPhone and Mac resizes).
+    func setViewportAspect(_ aspect: CGFloat) {
+        viewportAspect = max(Float(aspect), 0.05)
+        updateCameraPosition(factor: zoomFactor)
+    }
+
+    /// Distance at which the cube's bounding sphere fits both the
+    /// vertical and horizontal field of view (default vertical FOV 60°).
+    private func fitDistance() -> Float {
+        let boundingRadius: Float = Self.spacing * 1.5 * 1.7320508 * 1.07
+        let halfVertical: Float = .pi / 6
+        let halfHorizontal = atan(tan(halfVertical) * viewportAspect)
+        let limiting = min(halfVertical, halfHorizontal)
+        return boundingRadius / sin(limiting) * 1.05
+    }
+
+    private func updateCameraPosition(factor: Float) {
+        camera.position = cameraDirection * (fitDistance() * factor)
+    }
+
     func zoom(magnification: CGFloat, ended: Bool) {
-        let proposed = cameraDistance / Float(magnification)
-        let clamped = min(max(proposed, 4.0), 11.0)
-        camera.position = cameraDirection * clamped
-        if ended { cameraDistance = clamped }
+        let proposed = zoomFactor / Float(magnification)
+        let clamped = min(max(proposed, 0.6), 1.8)
+        updateCameraPosition(factor: clamped)
+        if ended { zoomFactor = clamped }
     }
 }

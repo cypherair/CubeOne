@@ -115,6 +115,7 @@ final class AppModel {
         userMoveCount = 0
         pendingIntents.removeAll()
         editor = nil
+        lastScramble = nil
         scene.allowsDirectTurns = true
         // The scene already shows the edited stickers at home transforms.
         persistState()
@@ -310,8 +311,23 @@ final class AppModel {
     private func beginScramble(_ sequence: [Move]) {
         guard scene.isIdle else { return }
         resetToSolvedInstantly()
+        lastScramble = sequence
         pendingIntents.append(contentsOf: sequence.map { _ in MoveIntent.scramble })
         scene.enqueue(sequence, duration: 0.09)
+    }
+
+    // MARK: Scramble reveal
+
+    /// The most recent scramble sequence, for review/replay/copy.
+    private(set) var lastScramble: [Move]?
+
+    var canReplayScramble: Bool { lastScramble != nil && isFreePlay }
+
+    /// Re-animates the last scramble from a solved cube (ends in the
+    /// same scrambled state).
+    func replayScramble() {
+        guard canReplayScramble, let sequence = lastScramble else { return }
+        beginScramble(sequence)
     }
 
     func reset() {
@@ -325,6 +341,7 @@ final class AppModel {
         historyCursor = 0
         userMoveCount = 0
         pendingIntents.removeAll()
+        lastScramble = nil
         scene.rebase(to: FaceletCube.solved)
         persistState()
     }

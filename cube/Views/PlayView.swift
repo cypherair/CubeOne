@@ -4,6 +4,7 @@ import SwiftUI
 /// The main play screen: the 3D cube with mode panels layered on top.
 struct PlayView: View {
     let model: AppModel
+    @State private var showScramble = false
 
     var body: some View {
         ZStack {
@@ -27,8 +28,22 @@ struct PlayView: View {
                 } else if let timerSession = model.timerSession {
                     TimerOverlay(model: model, session: timerSession)
                         .padding(.bottom, 18)
+                } else if showScramble, let scramble = model.lastScramble {
+                    ScramblePanel(model: model, scramble: scramble, isPresented: $showScramble)
+                        .padding(.bottom, 18)
                 } else {
                     historyStrip
+                    if model.lastScramble != nil {
+                        Button {
+                            showScramble = true
+                        } label: {
+                            Label("Scramble", systemImage: "eye")
+                                .font(.footnote)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
+                        .padding(.bottom, 10)
+                    }
                     ControlBar(model: model)
                         .padding(.bottom, 18)
                 }
@@ -37,6 +52,25 @@ struct PlayView: View {
             .animation(.snappy, value: model.solveSession != nil)
             .animation(.snappy, value: model.editor != nil)
             .animation(.snappy, value: model.timerSession != nil)
+            .animation(.snappy, value: showScramble)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        model.settings.rotationLock.toggle()
+                    } label: {
+                        Image(systemName: model.settings.rotationLock
+                            ? "lock.fill" : "lock.open")
+                            .accessibilityLabel(model.settings.rotationLock
+                                ? "Unlock cube rotation" : "Lock cube rotation")
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+                }
+                Spacer()
+            }
         }
         .sensoryFeedback(trigger: model.committedMoveCount) { _, _ in
             model.settings.hapticsEnabled ? .impact(weight: .light) : nil
