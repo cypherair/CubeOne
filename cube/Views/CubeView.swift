@@ -3,18 +3,37 @@ import RealityKit
 import SwiftUI
 
 /// The interactive 3D cube. Drag a sticker to turn its layer, drag empty
-/// space to orbit, pinch to zoom.
+/// space to orbit (or two fingers, if that setting is on), pinch to zoom.
 struct CubeView: View {
     let model: AppModel
 
+    /// Decided once at the start of each background drag: a gesture that
+    /// began while a sticker was being touched (or while orbiting is
+    /// disallowed) stays inert for its entire lifetime.
+    @State private var orbitDecision: Bool?
+    @State private var lastOrbitTranslation: CGSize = .zero
+
     var body: some View {
-        RealityView { content in
-            content.camera = .virtual
-            content.add(model.scene.root)
+        GeometryReader { proxy in
+            RealityView { content in
+                content.camera = .virtual
+                content.add(model.scene.root)
+            }
+            .gesture(stickerDrag)
+            .simultaneousGesture(orbitDrag)
+            .simultaneousGesture(zoom)
+            #if os(iOS)
+            .gesture(TwoFingerOrbitGesture(isEnabled: model.settings.twoFingerOrbit) { delta in
+                model.scene.orbit(translationDelta: delta, bypassGating: true)
+            })
+            #endif
+            .onAppear {
+                model.scene.setViewportAspect(proxy.size.width / max(proxy.size.height, 1))
+            }
+            .onChange(of: proxy.size) { _, size in
+                model.scene.setViewportAspect(size.width / max(size.height, 1))
+            }
         }
-        .gesture(stickerDrag)
-        .simultaneousGesture(orbitDrag)
-        .simultaneousGesture(zoom)
     }
 
     private var stickerDrag: some Gesture {
@@ -43,8 +62,12 @@ struct CubeView: View {
     }
 
     private var orbitDrag: some Gesture {
-        DragGesture(minimumDistance: 10)
+        DragGesture(minimumDistance: 12)
             .onChanged { value in
+                if orbitDecision == nil {
+                    orbitDecision = model.scene.canBeginOrbit
+                }
+                guard orbitDecision == true else { return }
                 let delta = CGSize(
                     width: value.translation.width - lastOrbitTranslation.width,
                     height: value.translation.height - lastOrbitTranslation.height
@@ -53,6 +76,7 @@ struct CubeView: View {
                 model.scene.orbit(translationDelta: delta)
             }
             .onEnded { _ in
+                orbitDecision = nil
                 lastOrbitTranslation = .zero
             }
     }
@@ -66,6 +90,4 @@ struct CubeView: View {
                 model.scene.zoom(magnification: value.magnification, ended: true)
             }
     }
-
-    @State private var lastOrbitTranslation: CGSize = .zero
 }
