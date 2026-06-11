@@ -1,25 +1,19 @@
 import SwiftUI
-import Playgrounds
-
-@main struct MyApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
-}
+import CubeKit
 
 struct ContentView: View {
     var body: some View {
-        Text("Hello, world!")
-            .padding()
+        VStack(spacing: 8) {
+            Text("Cube One")
+                .font(.largeTitle.bold())
+            Text("CubeKit \(CubeKitInfo.version)")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
     }
 }
 
 #Preview {
     ContentView()
-}
-
-#Playground {
-    _ = 1 + 2
 }
