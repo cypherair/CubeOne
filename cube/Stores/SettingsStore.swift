@@ -96,6 +96,23 @@ final class SettingsStore {
     /// Multiplier on orbit drag sensitivity.
     var orbitSensitivity = 1.0 { didSet { save() } }
     var lockMode = LockMode.free { didSet { save() } }
+    var solvingMethod = SolvingMethod.fast { didSet { save() } }
+
+    enum SolvingMethod: String, Codable, CaseIterable, Identifiable {
+        /// Kociemba two-phase: ~20 moves, found in milliseconds.
+        case fast
+        /// Classic layer-by-layer, the way people learn: long but
+        /// followable, with named stages.
+        case beginner
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .fast: "Fast (~20 moves)"
+            case .beginner: "Beginner (step by step)"
+            }
+        }
+    }
     /// iOS: orbit requires two fingers; one finger only turns faces.
     var twoFingerOrbit = false { didSet { save() } }
     private(set) var faceColors = ColorPreset.classic.colors
@@ -109,6 +126,7 @@ final class SettingsStore {
         var orbitSensitivity: Double?
         var rotationLock: Bool?
         var lockMode: LockMode?
+        var solvingMethod: SolvingMethod?
         var twoFingerOrbit: Bool?
         var faceColors: [StoredColor]?
     }
@@ -169,6 +187,7 @@ final class SettingsStore {
         orbitSensitivity = snapshot.orbitSensitivity ?? 1.0
         lockMode = snapshot.lockMode
             ?? (snapshot.rotationLock == true ? .layersOnly : .free)
+        solvingMethod = snapshot.solvingMethod ?? .fast
         twoFingerOrbit = snapshot.twoFingerOrbit ?? false
         if let colors = snapshot.faceColors, colors.count == 6 {
             faceColors = colors
@@ -180,8 +199,8 @@ final class SettingsStore {
         let snapshot = Snapshot(
             soundEnabled: soundEnabled, hapticsEnabled: hapticsEnabled,
             turnSpeed: turnSpeed, orbitSensitivity: orbitSensitivity,
-            rotationLock: nil, lockMode: lockMode, twoFingerOrbit: twoFingerOrbit,
-            faceColors: faceColors)
+            rotationLock: nil, lockMode: lockMode, solvingMethod: solvingMethod,
+            twoFingerOrbit: twoFingerOrbit, faceColors: faceColors)
         do {
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)

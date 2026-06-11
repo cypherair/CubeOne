@@ -24,6 +24,14 @@ struct SolutionPanel: View {
                 Label("Solved!", systemImage: "checkmark.seal.fill")
                     .font(.headline)
                     .foregroundStyle(.green)
+            } else if let stage = session.currentStage, let stages = session.stages {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stage.marker.name)
+                        .font(.headline)
+                    Text("Stage \(stage.index + 1) of \(stages.count) · \(session.solution.count) moves")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("Solution · \(session.solution.count) moves")
                     .font(.headline)
