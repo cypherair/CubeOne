@@ -62,25 +62,55 @@ final class SettingsStore {
         }
     }
 
+    /// What kinds of cube manipulation are currently allowed.
+    enum LockMode: String, Codable, CaseIterable, Identifiable {
+        /// Layer turns and whole-cube rotation both work.
+        case free
+        /// Only layer turns — whole-cube rotation is locked.
+        case layersOnly
+        /// Only whole-cube rotation — layer turns are locked.
+        case viewOnly
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .free: "Off"
+            case .layersOnly: "Layers only"
+            case .viewOnly: "View only"
+            }
+        }
+
+        var next: LockMode {
+            switch self {
+            case .free: .layersOnly
+            case .layersOnly: .viewOnly
+            case .viewOnly: .free
+            }
+        }
+    }
+
     var soundEnabled = true { didSet { save() } }
     var hapticsEnabled = true { didSet { save() } }
     var turnSpeed = TurnSpeed.normal { didSet { save() } }
     /// Multiplier on orbit drag sensitivity.
     var orbitSensitivity = 1.0 { didSet { save() } }
-    /// When locked, drags never orbit the cube — only face turns work.
-    var rotationLock = false { didSet { save() } }
+    var lockMode = LockMode.free { didSet { save() } }
     /// iOS: orbit requires two fingers; one finger only turns faces.
     var twoFingerOrbit = false { didSet { save() } }
     private(set) var faceColors = ColorPreset.classic.colors
 
+    /// All fields optional so settings files from any older version
+    /// still load (`rotationLock` is the legacy boolean lock).
     private struct Snapshot: Codable {
-        var soundEnabled: Bool
-        var hapticsEnabled: Bool
-        var turnSpeed: TurnSpeed
-        var orbitSensitivity: Double
-        var rotationLock: Bool
-        var twoFingerOrbit: Bool
-        var faceColors: [StoredColor]
+        var soundEnabled: Bool?
+        var hapticsEnabled: Bool?
+        var turnSpeed: TurnSpeed?
+        var orbitSensitivity: Double?
+        var rotationLock: Bool?
+        var lockMode: LockMode?
+        var twoFingerOrbit: Bool?
+        var faceColors: [StoredColor]?
     }
 
     private let fileURL: URL
@@ -133,14 +163,15 @@ final class SettingsStore {
         guard let data = try? Data(contentsOf: fileURL),
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data)
         else { return }
-        soundEnabled = snapshot.soundEnabled
-        hapticsEnabled = snapshot.hapticsEnabled
-        turnSpeed = snapshot.turnSpeed
-        orbitSensitivity = snapshot.orbitSensitivity
-        rotationLock = snapshot.rotationLock
-        twoFingerOrbit = snapshot.twoFingerOrbit
-        if snapshot.faceColors.count == 6 {
-            faceColors = snapshot.faceColors
+        soundEnabled = snapshot.soundEnabled ?? true
+        hapticsEnabled = snapshot.hapticsEnabled ?? true
+        turnSpeed = snapshot.turnSpeed ?? .normal
+        orbitSensitivity = snapshot.orbitSensitivity ?? 1.0
+        lockMode = snapshot.lockMode
+            ?? (snapshot.rotationLock == true ? .layersOnly : .free)
+        twoFingerOrbit = snapshot.twoFingerOrbit ?? false
+        if let colors = snapshot.faceColors, colors.count == 6 {
+            faceColors = colors
         }
     }
 
@@ -149,7 +180,7 @@ final class SettingsStore {
         let snapshot = Snapshot(
             soundEnabled: soundEnabled, hapticsEnabled: hapticsEnabled,
             turnSpeed: turnSpeed, orbitSensitivity: orbitSensitivity,
-            rotationLock: rotationLock, twoFingerOrbit: twoFingerOrbit,
+            rotationLock: nil, lockMode: lockMode, twoFingerOrbit: twoFingerOrbit,
             faceColors: faceColors)
         do {
             try FileManager.default.createDirectory(

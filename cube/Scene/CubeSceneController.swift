@@ -265,6 +265,9 @@ final class CubeSceneController {
     /// Handles a drag that started on a sticker. Returns the move once
     /// the drag has committed to one (at most once per gesture).
     func handleStickerDrag(entity: Entity, translation: CGSize) -> Move? {
+        // In view-only mode the whole cube surface acts as an orbit
+        // handle, so sticker touches must not block orbiting.
+        guard settings.lockMode != .viewOnly else { return nil }
         orbitBlocked = true
         guard allowsDirectTurns, !dragConsumed, isIdle else { return nil }
         let dragVector = SIMD2<Float>(Float(translation.width), Float(-translation.height))
@@ -329,7 +332,7 @@ final class CubeSceneController {
     /// Whether a freshly started background drag may orbit right now.
     /// (Two-finger mode and rotation lock route around one-finger orbits.)
     var canBeginOrbit: Bool {
-        var allowed = !orbitBlocked && !settings.rotationLock
+        var allowed = !orbitBlocked && settings.lockMode != .layersOnly
         #if os(iOS)
         allowed = allowed && !settings.twoFingerOrbit
         #endif
@@ -340,9 +343,9 @@ final class CubeSceneController {
     /// two-finger gesture, which is unambiguous by construction.
     func orbit(translationDelta: CGSize, bypassGating: Bool = false) {
         if !bypassGating {
-            guard !orbitBlocked, !settings.rotationLock else { return }
+            guard !orbitBlocked, settings.lockMode != .layersOnly else { return }
         } else {
-            guard !settings.rotationLock else { return }
+            guard settings.lockMode != .layersOnly else { return }
         }
         let sensitivity = 0.008 * Float(settings.orbitSensitivity)
         let yaw = simd_quatf(
