@@ -26,6 +26,11 @@ struct CubeView: View {
             .gesture(TwoFingerOrbitGesture(isEnabled: model.settings.twoFingerOrbit) { delta in
                 model.scene.orbit(translationDelta: delta, bypassGating: true)
             })
+            // In two-finger mode, zoom goes through UIKit too so pinch
+            // and orbit can recognize together.
+            .gesture(TwoFingerZoomGesture(isEnabled: model.settings.twoFingerOrbit) { scale, ended in
+                model.scene.zoom(magnification: scale, ended: ended)
+            })
             #endif
             .onAppear {
                 model.scene.setViewportAspect(proxy.size.width / max(proxy.size.height, 1))
@@ -81,13 +86,26 @@ struct CubeView: View {
             }
     }
 
+    /// SwiftUI pinch, used everywhere except iOS two-finger mode (there
+    /// the bridged UIKit pinch takes over so it can share touches with
+    /// the two-finger orbit pan).
     private var zoom: some Gesture {
         MagnifyGesture()
             .onChanged { value in
+                guard !usesBridgedZoom else { return }
                 model.scene.zoom(magnification: value.magnification, ended: false)
             }
             .onEnded { value in
+                guard !usesBridgedZoom else { return }
                 model.scene.zoom(magnification: value.magnification, ended: true)
             }
+    }
+
+    private var usesBridgedZoom: Bool {
+        #if os(iOS)
+        model.settings.twoFingerOrbit
+        #else
+        false
+        #endif
     }
 }

@@ -58,12 +58,10 @@ struct PlayView: View {
                 HStack {
                     Spacer()
                     Button {
-                        model.settings.rotationLock.toggle()
+                        model.settings.lockMode = model.settings.lockMode.next
                     } label: {
-                        Image(systemName: model.settings.rotationLock
-                            ? "lock.fill" : "lock.open")
-                            .accessibilityLabel(model.settings.rotationLock
-                                ? "Unlock cube rotation" : "Lock cube rotation")
+                        Image(systemName: lockIcon)
+                            .accessibilityLabel("Lock mode: \(model.settings.lockMode.label)")
                     }
                     .buttonStyle(.glass)
                     .padding(.top, 8)
@@ -129,5 +127,13 @@ struct PlayView: View {
     private var historyText: String {
         let applied = Array(model.history.prefix(model.historyCursor))
         return applied.suffix(16).notation
+    }
+
+    private var lockIcon: String {
+        switch model.settings.lockMode {
+        case .free: "lock.open"
+        case .layersOnly: "lock.rotation"
+        case .viewOnly: "square.3.layers.3d.slash"
+        }
     }
 }
