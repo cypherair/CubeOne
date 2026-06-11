@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Personal records for timed solves.
-struct StatsSheet: View {
+/// The Stats tab: personal records for timed solves.
+struct StatsView: View {
     let stats: StatsStore
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -39,15 +38,7 @@ struct StatsSheet: View {
                 }
             }
             .navigationTitle("Stats")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
         }
-        #if os(macOS)
-        .frame(minWidth: 380, minHeight: 420)
-        #endif
     }
 
     private func row(_ title: String, _ value: String) -> some View {

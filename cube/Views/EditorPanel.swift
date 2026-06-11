@@ -61,7 +61,7 @@ struct EditorPanel: View {
                     model.editorSelectColor(face)
                 } label: {
                     Circle()
-                        .fill(face.swiftUIColor)
+                        .fill(model.settings.color(for: face))
                         .frame(width: 30, height: 30)
                         .overlay(
                             Circle().strokeBorder(

@@ -24,6 +24,10 @@ final class CubeSceneController {
     private var cubelets: [Entity] = []
     private var stickerEntities: [Int: ModelEntity] = [:]
     private let camera = PerspectiveCamera()
+    private let settings: SettingsStore
+    /// The facelet colors the stickers currently render (the state at the
+    /// last rebase, with individual edits applied on top).
+    private(set) var baseFacelets = FaceletCube.solved
 
     /// Called when a turn's animation completes and the move logically
     /// happened.
@@ -45,9 +49,14 @@ final class CubeSceneController {
     private var cameraDistance: Float = simd_length(cameraHome)
     private let cameraDirection = simd_normalize(cameraHome)
 
-    init() {
+    init(settings: SettingsStore) {
+        self.settings = settings
         StickerComponent.registerComponent()
         buildScene()
+    }
+
+    private func stickerMaterial(for face: Face) -> SimpleMaterial {
+        CubeMaterials.sticker(settings.platformColor(for: face))
     }
 
     // MARK: Scene construction
@@ -98,7 +107,7 @@ final class CubeSceneController {
     private func makeSticker(for placement: FaceletGeometry.Placement) -> ModelEntity {
         let sticker = ModelEntity(
             mesh: .generateBox(width: 0.84, height: 0.84, depth: 0.04, cornerRadius: 0.10),
-            materials: [CubeMaterials.sticker(for: placement.face)]
+            materials: [stickerMaterial(for: placement.face)]
         )
         let normal = placement.face.normal
         sticker.position = normal * 0.51
@@ -143,14 +152,24 @@ final class CubeSceneController {
                 }
             }
         }
+        baseFacelets = facelets
         for (faceletIndex, sticker) in stickerEntities {
-            sticker.model?.materials = [CubeMaterials.sticker(for: facelets.stickers[faceletIndex])]
+            sticker.model?.materials = [stickerMaterial(for: facelets.stickers[faceletIndex])]
         }
     }
 
     /// Paints a single sticker (editor support).
     func paintSticker(at faceletIndex: Int, with face: Face) {
-        stickerEntities[faceletIndex]?.model?.materials = [CubeMaterials.sticker(for: face)]
+        baseFacelets.stickers[faceletIndex] = face
+        stickerEntities[faceletIndex]?.model?.materials = [stickerMaterial(for: face)]
+    }
+
+    /// Re-skins every sticker with the current settings colors (call
+    /// after the user changes the color scheme).
+    func repaintAll() {
+        for (faceletIndex, sticker) in stickerEntities {
+            sticker.model?.materials = [stickerMaterial(for: baseFacelets.stickers[faceletIndex])]
+        }
     }
 
     /// The facelet index a hit entity represents. Only meaningful while

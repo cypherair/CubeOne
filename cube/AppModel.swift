@@ -14,7 +14,8 @@ final class AppModel {
         case failed
     }
 
-    let scene = CubeSceneController()
+    let scene: CubeSceneController
+    let settings: SettingsStore
 
     private(set) var cubeState = CubeState.solved
     private(set) var solverStatus = SolverStatus.preparing
@@ -231,7 +232,9 @@ final class AppModel {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("CubeOne", isDirectory: true)
 
-    init() {
+    init(settings: SettingsStore) {
+        self.settings = settings
+        scene = CubeSceneController(settings: settings)
         stats = StatsStore()
         scene.onMoveCommitted = { [weak self] move in
             self?.commit(move)
@@ -257,17 +260,33 @@ final class AppModel {
 
     /// A user drag resolved to a face turn.
     func performUserMove(_ move: Move) {
-        enqueue(move, intent: .user)
+        enqueue(move, intent: .user, duration: settings.turnSpeed.duration)
     }
 
     func undo() {
         guard canUndo else { return }
-        enqueue(history[historyCursor - 1].inverse, intent: .undo)
+        enqueue(
+            history[historyCursor - 1].inverse, intent: .undo,
+            duration: settings.turnSpeed.duration)
     }
 
     func redo() {
         guard canRedo else { return }
-        enqueue(history[historyCursor], intent: .redo)
+        enqueue(
+            history[historyCursor], intent: .redo,
+            duration: settings.turnSpeed.duration)
+    }
+
+    // MARK: Color scheme
+
+    func setFaceColor(_ color: Color, for face: Face) {
+        settings.setColor(color, for: face)
+        scene.repaintAll()
+    }
+
+    func applyColorPreset(_ preset: SettingsStore.ColorPreset) {
+        settings.apply(preset: preset)
+        scene.repaintAll()
     }
 
     /// Resets to solved, then animates a WCA-style random-state scramble.
@@ -315,7 +334,9 @@ final class AppModel {
     private func commit(_ move: Move) {
         cubeState.apply(move)
         committedMoveCount += 1
-        click.play()
+        if settings.soundEnabled {
+            click.play()
+        }
         persistState()
         let intent = pendingIntents.isEmpty ? .user : pendingIntents.removeFirst()
         switch intent {

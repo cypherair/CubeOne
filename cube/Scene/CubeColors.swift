@@ -9,19 +9,16 @@ typealias PlatformColor = UIColor
 #endif
 
 nonisolated extension Face {
-    /// Standard WCA color scheme: white up, green front, red right.
-    var stickerColor: PlatformColor {
+    var displayName: String {
         switch self {
-        case .up: PlatformColor.white
-        case .right: PlatformColor(red: 0.85, green: 0.12, blue: 0.16, alpha: 1)
-        case .front: PlatformColor(red: 0.06, green: 0.62, blue: 0.27, alpha: 1)
-        case .down: PlatformColor(red: 1.0, green: 0.84, blue: 0.05, alpha: 1)
-        case .left: PlatformColor(red: 0.95, green: 0.48, blue: 0.04, alpha: 1)
-        case .back: PlatformColor(red: 0.05, green: 0.32, blue: 0.73, alpha: 1)
+        case .up: "Top"
+        case .right: "Right"
+        case .front: "Front"
+        case .down: "Bottom"
+        case .left: "Left"
+        case .back: "Back"
         }
     }
-
-    var swiftUIColor: Color { Color(stickerColor) }
 
     /// Outward normal of this face in cube-local space (x right, y up,
     /// z toward the viewer).
@@ -38,8 +35,8 @@ nonisolated extension Face {
 }
 
 enum CubeMaterials {
-    static func sticker(for face: Face) -> SimpleMaterial {
-        SimpleMaterial(color: face.stickerColor, roughness: 0.35, isMetallic: false)
+    static func sticker(_ color: PlatformColor) -> SimpleMaterial {
+        SimpleMaterial(color: color, roughness: 0.35, isMetallic: false)
     }
 
     static let plastic = SimpleMaterial(
