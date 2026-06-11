@@ -31,15 +31,90 @@ final class AppModel {
         return nil
     }
 
-    var canUndo: Bool { historyCursor > 0 && scene.isIdle }
-    var canRedo: Bool { historyCursor < history.count && scene.isIdle }
-    var canScramble: Bool { solver != nil && scene.isIdle }
-    var canReset: Bool { scene.isIdle && cubeState != .solved }
+    var canUndo: Bool { historyCursor > 0 && scene.isIdle && solveSession == nil }
+    var canRedo: Bool { historyCursor < history.count && scene.isIdle && solveSession == nil }
+    var canScramble: Bool { solver != nil && scene.isIdle && solveSession == nil }
+    var canReset: Bool { scene.isIdle && cubeState != .solved && solveSession == nil }
+    var canSolve: Bool {
+        solver != nil && scene.isIdle && !cubeState.isSolved
+            && solveSession == nil && !isComputingSolution
+    }
+
+    // MARK: Solve session
+
+    /// An active guided solution being played back on the cube.
+    struct SolveSession {
+        let solution: [Move]
+        var nextIndex = 0
+        var isPlaying = false
+        var isFinished: Bool { nextIndex >= solution.count }
+    }
+
+    private(set) var solveSession: SolveSession?
+    private(set) var isComputingSolution = false
+
+    func startSolve() {
+        guard canSolve, let solver else { return }
+        isComputingSolution = true
+        let state = cubeState
+        Task.detached(priority: .userInitiated) {
+            let solution = solver.solve(state, timeBudget: .milliseconds(300))
+            await MainActor.run { [weak self] in
+                self?.beginSolveSession(solution)
+            }
+        }
+    }
+
+    private func beginSolveSession(_ solution: [Move]?) {
+        isComputingSolution = false
+        guard let solution, !solution.isEmpty, scene.isIdle else { return }
+        // The guided solution takes over: previous undo history no longer
+        // applies to where the cube is heading.
+        history.removeAll()
+        historyCursor = 0
+        userMoveCount = 0
+        solveSession = SolveSession(solution: solution)
+        scene.allowsDirectTurns = false
+    }
+
+    func endSolveSession() {
+        solveSession = nil
+        scene.allowsDirectTurns = true
+    }
+
+    func solveTogglePlay() {
+        guard var session = solveSession, !session.isFinished else { return }
+        session.isPlaying.toggle()
+        solveSession = session
+        if session.isPlaying { advanceSolution() }
+    }
+
+    func solveStepForward() {
+        guard var session = solveSession else { return }
+        session.isPlaying = false
+        solveSession = session
+        advanceSolution()
+    }
+
+    func solveStepBackward() {
+        guard var session = solveSession, session.nextIndex > 0, scene.isIdle else { return }
+        session.isPlaying = false
+        solveSession = session
+        enqueue(session.solution[session.nextIndex - 1].inverse, intent: .solutionBack)
+    }
+
+    private func advanceSolution() {
+        guard let session = solveSession, !session.isFinished, scene.isIdle else { return }
+        enqueue(
+            session.solution[session.nextIndex], intent: .solutionForward,
+            duration: session.isPlaying ? 0.34 : 0.22
+        )
+    }
 
     /// Why a queued move is happening — decides how the commit updates
     /// history. Parallel FIFO to the scene's animation queue.
     private enum MoveIntent {
-        case user, undo, redo, scramble
+        case user, undo, redo, scramble, solutionForward, solutionBack
     }
     private var pendingIntents: [MoveIntent] = []
 
@@ -140,11 +215,22 @@ final class AppModel {
             userMoveCount += 1
         case .scramble:
             break
+        case .solutionForward:
+            solveSession?.nextIndex += 1
+            if let session = solveSession {
+                if session.isFinished {
+                    solveSession?.isPlaying = false
+                } else if session.isPlaying {
+                    advanceSolution()
+                }
+            }
+        case .solutionBack:
+            solveSession?.nextIndex -= 1
         }
     }
 
-    private func enqueue(_ move: Move, intent: MoveIntent) {
+    private func enqueue(_ move: Move, intent: MoveIntent, duration: TimeInterval = 0.22) {
         pendingIntents.append(intent)
-        scene.enqueue(move)
+        scene.enqueue(move, duration: duration)
     }
 }

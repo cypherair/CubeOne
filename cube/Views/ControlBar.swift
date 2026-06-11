@@ -16,6 +16,19 @@ struct ControlBar: View {
                 .disabled(!model.canScramble)
 
                 Button {
+                    model.startSolve()
+                } label: {
+                    if model.isComputingSolution {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Solve", systemImage: "wand.and.stars")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+                .disabled(!model.canSolve)
+
+                Button {
                     model.undo()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
