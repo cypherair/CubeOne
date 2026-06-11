@@ -20,6 +20,9 @@ struct ContentView: View {
                 if let session = model.solveSession {
                     SolutionPanel(model: model, session: session)
                         .padding(.bottom, 18)
+                } else if let editorSession = model.editor {
+                    EditorPanel(model: model, session: editorSession)
+                        .padding(.bottom, 18)
                 } else {
                     historyStrip
                     ControlBar(model: model)
@@ -28,6 +31,7 @@ struct ContentView: View {
             }
             .padding(.horizontal)
             .animation(.snappy, value: model.solveSession != nil)
+            .animation(.snappy, value: model.editor != nil)
         }
         .preferredColorScheme(.dark)
     }

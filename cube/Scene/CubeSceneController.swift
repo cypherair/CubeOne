@@ -153,6 +153,12 @@ final class CubeSceneController {
         stickerEntities[faceletIndex]?.model?.materials = [CubeMaterials.sticker(for: face)]
     }
 
+    /// The facelet index a hit entity represents. Only meaningful while
+    /// rebased (editor mode), when home placement equals current.
+    func faceletIndex(of entity: Entity) -> Int? {
+        entity.components[StickerComponent.self]?.faceletIndex
+    }
+
     // MARK: Turn animation
 
     func enqueue(_ move: Move, duration: TimeInterval = 0.22) {

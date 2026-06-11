@@ -31,13 +31,87 @@ final class AppModel {
         return nil
     }
 
-    var canUndo: Bool { historyCursor > 0 && scene.isIdle && solveSession == nil }
-    var canRedo: Bool { historyCursor < history.count && scene.isIdle && solveSession == nil }
-    var canScramble: Bool { solver != nil && scene.isIdle && solveSession == nil }
-    var canReset: Bool { scene.isIdle && cubeState != .solved && solveSession == nil }
+    /// No session is active and the scene is settled.
+    private var isFreePlay: Bool { scene.isIdle && solveSession == nil && editor == nil }
+
+    var canUndo: Bool { historyCursor > 0 && isFreePlay }
+    var canRedo: Bool { historyCursor < history.count && isFreePlay }
+    var canScramble: Bool { solver != nil && isFreePlay }
+    var canReset: Bool { cubeState != .solved && isFreePlay }
     var canSolve: Bool {
-        solver != nil && scene.isIdle && !cubeState.isSolved
-            && solveSession == nil && !isComputingSolution
+        solver != nil && !cubeState.isSolved && isFreePlay && !isComputingSolution
+    }
+    var canEdit: Bool { isFreePlay }
+
+    // MARK: Editor session
+
+    /// Sticker-painting mode: a working facelet copy with live validation.
+    struct EditorSession {
+        var facelets: FaceletCube
+        var selectedColor: Face = .up
+        var error: CubeValidationError?
+        var isValid: Bool { error == nil }
+    }
+
+    private(set) var editor: EditorSession?
+
+    func beginEditing() {
+        guard canEdit else { return }
+        editor = EditorSession(facelets: cubeState.facelets)
+        scene.allowsDirectTurns = false
+        // Reset transforms so every sticker entity sits at its home
+        // facelet position and painting maps one-to-one.
+        scene.rebase(to: cubeState.facelets)
+    }
+
+    func cancelEditing() {
+        guard editor != nil else { return }
+        editor = nil
+        scene.allowsDirectTurns = true
+        scene.rebase(to: cubeState.facelets)
+    }
+
+    func applyEditing() {
+        guard let session = editor,
+              let state = try? session.facelets.validatedState() else { return }
+        cubeState = state
+        history.removeAll()
+        historyCursor = 0
+        userMoveCount = 0
+        pendingIntents.removeAll()
+        editor = nil
+        scene.allowsDirectTurns = true
+        // The scene already shows the edited stickers at home transforms.
+    }
+
+    func editorSelectColor(_ face: Face) {
+        editor?.selectedColor = face
+    }
+
+    /// Repaints the whole working copy (e.g. back to solved).
+    func editorReplaceAll(with facelets: FaceletCube) {
+        guard var session = editor else { return }
+        session.facelets = facelets
+        session.error = Self.validationError(of: facelets)
+        editor = session
+        scene.rebase(to: facelets)
+    }
+
+    func paintSticker(at index: Int) {
+        guard var session = editor, !FaceletCube.isCenter(index) else { return }
+        session.facelets.stickers[index] = session.selectedColor
+        session.error = Self.validationError(of: session.facelets)
+        editor = session
+        scene.paintSticker(at: index, with: session.selectedColor)
+    }
+
+    private static func validationError(of facelets: FaceletCube) -> CubeValidationError? {
+        do {
+            _ = try facelets.validatedState()
+            return nil
+        } catch {
+            return error
+        }
     }
 
     // MARK: Solve session
