@@ -32,7 +32,9 @@ final class AppModel {
     }
 
     /// No session is active and the scene is settled.
-    private var isFreePlay: Bool { scene.isIdle && solveSession == nil && editor == nil }
+    private var isFreePlay: Bool {
+        scene.isIdle && solveSession == nil && editor == nil && timerSession == nil
+    }
 
     var canUndo: Bool { historyCursor > 0 && isFreePlay }
     var canRedo: Bool { historyCursor < history.count && isFreePlay }
@@ -42,6 +44,35 @@ final class AppModel {
         solver != nil && !cubeState.isSolved && isFreePlay && !isComputingSolution
     }
     var canEdit: Bool { isFreePlay }
+    var canStartTimer: Bool { solver != nil && isFreePlay }
+
+    // MARK: Timer session
+
+    /// A timed solve: scramble plays, the clock starts on the user's
+    /// first turn, and stops automatically when the cube is solved.
+    struct TimerSession {
+        enum Phase {
+            case scrambling
+            case ready
+            case running(Date)
+            case finished(TimeInterval, isBest: Bool)
+        }
+        var phase: Phase = .scrambling
+        var moveCount = 0
+    }
+
+    private(set) var timerSession: TimerSession?
+    let stats: StatsStore
+
+    func startTimerMode() {
+        guard canStartTimer, let solver else { return }
+        timerSession = TimerSession()
+        runScramble(using: solver)
+    }
+
+    func exitTimerMode() {
+        timerSession = nil
+    }
 
     // MARK: Editor session
 
@@ -197,6 +228,7 @@ final class AppModel {
         .appendingPathComponent("CubeOne", isDirectory: true)
 
     init() {
+        stats = StatsStore()
         scene.onMoveCommitted = { [weak self] move in
             self?.commit(move)
         }
@@ -236,6 +268,10 @@ final class AppModel {
     /// Resets to solved, then animates a WCA-style random-state scramble.
     func scramble() {
         guard canScramble, let solver else { return }
+        runScramble(using: solver)
+    }
+
+    private func runScramble(using solver: KociembaSolver) {
         let target = Scrambler.randomState()
         Task.detached(priority: .userInitiated) {
             guard let sequence = Scrambler.scrambleSequence(to: target, using: solver) else {
@@ -281,6 +317,7 @@ final class AppModel {
             history.append(move)
             historyCursor += 1
             userMoveCount += 1
+            advanceTimer()
         case .undo:
             historyCursor -= 1
             userMoveCount = max(0, userMoveCount - 1)
@@ -288,7 +325,11 @@ final class AppModel {
             historyCursor += 1
             userMoveCount += 1
         case .scramble:
-            break
+            if case .scrambling = timerSession?.phase,
+               !pendingIntents.contains(.scramble)
+            {
+                timerSession?.phase = .ready
+            }
         case .solutionForward:
             solveSession?.nextIndex += 1
             if let session = solveSession {
@@ -301,6 +342,23 @@ final class AppModel {
         case .solutionBack:
             solveSession?.nextIndex -= 1
         }
+    }
+
+    /// Timer transitions on user turns: first turn starts the clock,
+    /// reaching solved stops it and records the result.
+    private func advanceTimer() {
+        guard var session = timerSession else { return }
+        if case .ready = session.phase {
+            session.phase = .running(Date.now)
+        }
+        session.moveCount += 1
+        if case .running(let start) = session.phase, cubeState.isSolved {
+            let duration = Date.now.timeIntervalSince(start)
+            let isBest = (stats.best?.duration).map { duration < $0 } ?? true
+            stats.add(duration: duration, moveCount: session.moveCount)
+            session.phase = .finished(duration, isBest: isBest)
+        }
+        timerSession = session
     }
 
     private func enqueue(_ move: Move, intent: MoveIntent, duration: TimeInterval = 0.22) {
