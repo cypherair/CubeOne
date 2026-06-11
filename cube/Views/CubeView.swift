@@ -30,8 +30,15 @@ struct CubeView: View {
                     model.performUserMove(move)
                 }
             }
-            .onEnded { _ in
+            .onEnded { value in
                 model.scene.dragEnded()
+                // In edit mode a motionless press on a sticker paints it.
+                let translation = value.gestureValue.translation
+                if model.editor != nil, abs(translation.width) < 6, abs(translation.height) < 6,
+                   let index = model.scene.faceletIndex(of: value.entity)
+                {
+                    model.paintSticker(at: index)
+                }
             }
     }
 

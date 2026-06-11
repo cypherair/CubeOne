@@ -29,6 +29,14 @@ struct ControlBar: View {
                 .disabled(!model.canSolve)
 
                 Button {
+                    model.beginEditing()
+                } label: {
+                    Image(systemName: "paintpalette")
+                        .accessibilityLabel("Customize cube")
+                }
+                .disabled(!model.canEdit)
+
+                Button {
                     model.undo()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
