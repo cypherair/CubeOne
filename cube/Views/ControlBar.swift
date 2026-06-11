@@ -37,6 +37,14 @@ struct ControlBar: View {
                 .disabled(!model.canEdit)
 
                 Button {
+                    model.startTimerMode()
+                } label: {
+                    Image(systemName: "stopwatch")
+                        .accessibilityLabel("Timed solve")
+                }
+                .disabled(!model.canStartTimer)
+
+                Button {
                     model.undo()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")

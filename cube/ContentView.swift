@@ -23,6 +23,9 @@ struct ContentView: View {
                 } else if let editorSession = model.editor {
                     EditorPanel(model: model, session: editorSession)
                         .padding(.bottom, 18)
+                } else if let timerSession = model.timerSession {
+                    TimerOverlay(model: model, session: timerSession)
+                        .padding(.bottom, 18)
                 } else {
                     historyStrip
                     ControlBar(model: model)
@@ -32,9 +35,31 @@ struct ContentView: View {
             .padding(.horizontal)
             .animation(.snappy, value: model.solveSession != nil)
             .animation(.snappy, value: model.editor != nil)
+            .animation(.snappy, value: model.timerSession != nil)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        showStats = true
+                    } label: {
+                        Image(systemName: "chart.bar")
+                            .accessibilityLabel("Stats")
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+                }
+                Spacer()
+            }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showStats) {
+            StatsSheet(stats: model.stats)
+        }
     }
+
+    @State private var showStats = false
 
     @ViewBuilder
     private var statusHeader: some View {
