@@ -1,17 +1,25 @@
 import SwiftUI
 
-/// The floating Liquid Glass control bar.
+/// The floating Liquid Glass control bar. Falls back to icon-only
+/// buttons when horizontal space is tight (iPhone).
 struct ControlBar: View {
     let model: AppModel
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            bar(.titleAndIcon)
+            bar(.iconOnly)
+        }
+    }
+
+    private func bar(_ labelStyle: some LabelStyle) -> some View {
         GlassEffectContainer(spacing: 14) {
             HStack(spacing: 14) {
                 Button {
                     model.scramble()
                 } label: {
                     Label("Scramble", systemImage: "shuffle")
-                        .labelStyle(.titleAndIcon)
+                        .labelStyle(labelStyle)
                 }
                 .disabled(!model.canScramble)
 
@@ -23,7 +31,7 @@ struct ControlBar: View {
                             .controlSize(.small)
                     } else {
                         Label("Solve", systemImage: "wand.and.stars")
-                            .labelStyle(.titleAndIcon)
+                            .labelStyle(labelStyle)
                     }
                 }
                 .disabled(!model.canSolve)
