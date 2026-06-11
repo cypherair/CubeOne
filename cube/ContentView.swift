@@ -54,6 +54,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sensoryFeedback(.impact(weight: .light), trigger: model.committedMoveCount)
         .sheet(isPresented: $showStats) {
             StatsSheet(stats: model.stats)
         }

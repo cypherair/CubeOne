@@ -25,6 +25,9 @@ final class AppModel {
     private(set) var history: [Move] = []
     private(set) var historyCursor = 0
     private(set) var userMoveCount = 0
+    /// Every committed turn, for sound/haptic triggers.
+    private(set) var committedMoveCount = 0
+    private let click = ClickSound()
 
     var solver: KociembaSolver? {
         if case .ready(let solver) = solverStatus { return solver }
@@ -113,6 +116,7 @@ final class AppModel {
         editor = nil
         scene.allowsDirectTurns = true
         // The scene already shows the edited stickers at home transforms.
+        persistState()
     }
 
     func editorSelectColor(_ face: Face) {
@@ -232,6 +236,7 @@ final class AppModel {
         scene.onMoveCommitted = { [weak self] move in
             self?.commit(move)
         }
+        restoreSavedState()
         let directory = Self.supportDirectory
         Task.detached(priority: .userInitiated) {
             let status: SolverStatus
@@ -302,12 +307,16 @@ final class AppModel {
         userMoveCount = 0
         pendingIntents.removeAll()
         scene.rebase(to: FaceletCube.solved)
+        persistState()
     }
 
     // MARK: Commits from the scene
 
     private func commit(_ move: Move) {
         cubeState.apply(move)
+        committedMoveCount += 1
+        click.play()
+        persistState()
         let intent = pendingIntents.isEmpty ? .user : pendingIntents.removeFirst()
         switch intent {
         case .user:
@@ -364,5 +373,28 @@ final class AppModel {
     private func enqueue(_ move: Move, intent: MoveIntent, duration: TimeInterval = 0.22) {
         pendingIntents.append(intent)
         scene.enqueue(move, duration: duration)
+    }
+
+    // MARK: Cube state persistence
+
+    private static var stateURL: URL {
+        supportDirectory.appendingPathComponent("state.json")
+    }
+
+    private func restoreSavedState() {
+        guard let data = try? Data(contentsOf: Self.stateURL),
+              let state = try? JSONDecoder().decode(CubeState.self, from: data),
+              state.isLegal
+        else { return }
+        cubeState = state
+        scene.rebase(to: state.facelets)
+    }
+
+    func persistState() {
+        try? FileManager.default.createDirectory(
+            at: Self.supportDirectory, withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(cubeState) {
+            try? data.write(to: Self.stateURL, options: .atomic)
+        }
     }
 }
