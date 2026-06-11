@@ -17,11 +17,17 @@ struct ContentView: View {
             VStack {
                 statusHeader
                 Spacer()
-                historyStrip
-                ControlBar(model: model)
-                    .padding(.bottom, 18)
+                if let session = model.solveSession {
+                    SolutionPanel(model: model, session: session)
+                        .padding(.bottom, 18)
+                } else {
+                    historyStrip
+                    ControlBar(model: model)
+                        .padding(.bottom, 18)
+                }
             }
             .padding(.horizontal)
+            .animation(.snappy, value: model.solveSession != nil)
         }
         .preferredColorScheme(.dark)
     }

@@ -202,9 +202,11 @@ final class CubeSceneController {
                 self.snapTransform(of: cubelet)
             }
             pivot.removeFromParent()
-            self.onMoveCommitted?(turn.move)
+            // Settle the queue (and isIdle) before reporting the commit,
+            // so a commit handler can immediately enqueue a follow-up.
             self.isAnimating = false
             self.processQueue()
+            self.onMoveCommitted?(turn.move)
         }
     }
 
