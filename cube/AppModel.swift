@@ -155,10 +155,26 @@ final class AppModel {
 
     /// An active guided solution being played back on the cube.
     struct SolveSession {
+        struct StageMarker {
+            let name: String
+            let range: Range<Int>
+        }
+
         let solution: [Move]
+        /// Present for beginner-method solutions: which stage each move
+        /// index belongs to.
+        let stages: [StageMarker]?
         var nextIndex = 0
         var isPlaying = false
         var isFinished: Bool { nextIndex >= solution.count }
+
+        var currentStage: (index: Int, marker: StageMarker)? {
+            guard let stages else { return nil }
+            let position = min(nextIndex, solution.count - 1)
+            guard let index = stages.firstIndex(where: { $0.range.contains(position) })
+            else { return nil }
+            return (index, stages[index])
+        }
     }
 
     private(set) var solveSession: SolveSession?
@@ -168,15 +184,35 @@ final class AppModel {
         guard canSolve, let solver else { return }
         isComputingSolution = true
         let state = cubeState
+        let method = settings.solvingMethod
         Task.detached(priority: .userInitiated) {
-            let solution = solver.solve(state, timeBudget: .milliseconds(300))
-            await MainActor.run { [weak self] in
-                self?.beginSolveSession(solution)
+            let solution: [Move]?
+            var markers: [SolveSession.StageMarker]?
+            switch method {
+            case .fast:
+                solution = solver.solve(state, timeBudget: .milliseconds(300))
+            case .beginner:
+                if let staged = BeginnerSolver().solve(state) {
+                    solution = staged.moves
+                    var start = 0
+                    markers = staged.stages.compactMap { stage in
+                        guard !stage.moves.isEmpty else { return nil }
+                        defer { start += stage.moves.count }
+                        return SolveSession.StageMarker(
+                            name: stage.stage.displayName,
+                            range: start..<(start + stage.moves.count))
+                    }
+                } else {
+                    solution = nil
+                }
+            }
+            await MainActor.run { [weak self, markers] in
+                self?.beginSolveSession(solution, stages: markers)
             }
         }
     }
 
-    private func beginSolveSession(_ solution: [Move]?) {
+    private func beginSolveSession(_ solution: [Move]?, stages: [SolveSession.StageMarker]?) {
         isComputingSolution = false
         guard let solution, !solution.isEmpty, scene.isIdle else { return }
         // The guided solution takes over: previous undo history no longer
@@ -184,7 +220,7 @@ final class AppModel {
         history.removeAll()
         historyCursor = 0
         userMoveCount = 0
-        solveSession = SolveSession(solution: solution)
+        solveSession = SolveSession(solution: solution, stages: stages)
         scene.allowsDirectTurns = false
     }
 

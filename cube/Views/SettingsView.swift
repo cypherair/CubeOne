@@ -28,6 +28,14 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Solving") {
+                    Picker("Method", selection: $settings.solvingMethod) {
+                        ForEach(SettingsStore.SolvingMethod.allCases) { method in
+                            Text(method.label).tag(method)
+                        }
+                    }
+                }
+
                 Section("Feedback") {
                     Toggle("Turn sound", isOn: $settings.soundEnabled)
                     Toggle("Haptics", isOn: $settings.hapticsEnabled)
