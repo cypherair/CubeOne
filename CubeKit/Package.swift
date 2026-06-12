@@ -3,11 +3,9 @@ import PackageDescription
 
 let package = Package(
     name: "CubeKit",
-    // Pure Swift with no OS-26 API dependencies — kept low so tests and
-    // the bake tool run on CI runners and older Macs.
     platforms: [
-        .iOS(.v18),
-        .macOS(.v15),
+        .iOS("26.0"),
+        .macOS("26.0"),
     ],
     products: [
         .library(name: "CubeKit", targets: ["CubeKit"]),
