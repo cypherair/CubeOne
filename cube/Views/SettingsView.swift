@@ -26,13 +26,10 @@ struct SettingsView: View {
                     } label: {
                         Label("Cube Colors", systemImage: "paintpalette")
                     }
-                }
-
-                Section("Solving") {
-                    Picker("Method", selection: $settings.solvingMethod) {
-                        ForEach(SettingsStore.SolvingMethod.allCases) { method in
-                            Text(method.label).tag(method)
-                        }
+                    NavigationLink {
+                        SolvingSettingsView(settings: model.settings, model: model)
+                    } label: {
+                        Label("Solving", systemImage: "wand.and.stars")
                     }
                 }
 

@@ -32,6 +32,14 @@ struct SolutionPanel: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            } else if session.isOptimal {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Optimal · \(session.solution.count) moves")
+                        .font(.headline)
+                    Text("Proven shortest solution")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("Solution · \(session.solution.count) moves")
                     .font(.headline)
