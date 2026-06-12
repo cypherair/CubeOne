@@ -1,5 +1,5 @@
 /// The stages of the classic layer-by-layer (beginner) method, in order.
-public enum BeginnerStage: String, CaseIterable, Sendable {
+public enum BeginnerStage: String, CaseIterable, Sendable, SolverStage {
     case bottomCross
     case bottomCorners
     case middleEdges
@@ -21,24 +21,13 @@ public enum BeginnerStage: String, CaseIterable, Sendable {
     }
 }
 
-/// A solution annotated with the method stage each move belongs to.
-public struct StagedSolution: Sendable {
-    public struct Stage: Sendable {
-        public let stage: BeginnerStage
-        public let moves: [Move]
-    }
-
-    public let stages: [Stage]
-    public var moves: [Move] { stages.flatMap(\.moves) }
-}
-
 /// Solves the way people are taught to: layer by layer, with short
 /// memorable algorithms. Solutions are long (~150–250 moves) but every
 /// stage has a understandable goal — the point is to follow along.
 public struct BeginnerSolver: Sendable {
     public init() {}
 
-    public func solve(_ state: CubeState) -> StagedSolution? {
+    public func solve(_ state: CubeState) -> StagedSolution<BeginnerStage>? {
         guard state.isLegal else { return nil }
         var worker = Worker(state: state)
         do {
@@ -59,7 +48,7 @@ private enum SolverFailure: Error {
 
 private struct Worker {
     var state: CubeState
-    var finishedStages: [StagedSolution.Stage] = []
+    var finishedStages: [StagedSolution<BeginnerStage>.Stage] = []
     private var currentMoves: [Move] = []
 
     init(state: CubeState) {
@@ -82,8 +71,7 @@ private struct Worker {
     ) rethrows {
         currentMoves = []
         try body(&self)
-        finishedStages.append(
-            StagedSolution.Stage(stage: stage, moves: Self.merged(currentMoves)))
+        finishedStages.append(.init(stage: stage, moves: Self.merged(currentMoves)))
         currentMoves = []
     }
 

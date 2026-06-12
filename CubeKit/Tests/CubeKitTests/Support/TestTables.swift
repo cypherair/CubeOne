@@ -11,4 +11,11 @@ enum TestTables {
     }()
 
     static let solver = KociembaSolver(tables: shared)
+
+    static let thistlethwaite: ThistlethwaiteTables = {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CubeKitTestThistlethwaiteTables")
+        return (try? ThistlethwaiteTables.cached(in: directory))
+            ?? ThistlethwaiteTables.generate()
+    }()
 }

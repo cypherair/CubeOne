@@ -246,6 +246,9 @@ final class AppModel {
 
     private(set) var solveSession: SolveSession?
     private(set) var isComputingSolution = false
+    /// Built lazily on the first Thistlethwaite solve (the tables take
+    /// about a second to generate, then load from disk), kept for reuse.
+    private var thistlethwaiteSolver: ThistlethwaiteSolver?
 
     func startSolve() {
         guard canSolve, let solver else { return }
@@ -256,30 +259,55 @@ final class AppModel {
         isComputingSolution = true
         let state = cubeState
         let method = settings.solvingMethod
+        let prebuiltThistlethwaite = thistlethwaiteSolver
+        let directory = Self.supportDirectory
         Task.detached(priority: .userInitiated) {
             let solution: [Move]?
             var markers: [SolveSession.StageMarker]?
+            var builtThistlethwaite: ThistlethwaiteSolver?
             switch method {
             case .fast, .optimal:
                 solution = solver.solve(state, timeBudget: .milliseconds(300))
+            case .thistlethwaite:
+                let thistlethwaite = prebuiltThistlethwaite
+                    ?? (try? ThistlethwaiteTables.cached(in: directory))
+                        .map(ThistlethwaiteSolver.init)
+                builtThistlethwaite = thistlethwaite
+                if let staged = thistlethwaite?.solve(state) {
+                    solution = staged.moves
+                    markers = Self.stageMarkers(of: staged)
+                } else {
+                    solution = nil
+                }
             case .beginner:
                 if let staged = BeginnerSolver().solve(state) {
                     solution = staged.moves
-                    var start = 0
-                    markers = staged.stages.compactMap { stage in
-                        guard !stage.moves.isEmpty else { return nil }
-                        defer { start += stage.moves.count }
-                        return SolveSession.StageMarker(
-                            name: stage.stage.displayName,
-                            range: start..<(start + stage.moves.count))
-                    }
+                    markers = Self.stageMarkers(of: staged)
                 } else {
                     solution = nil
                 }
             }
-            await MainActor.run { [weak self, markers] in
+            await MainActor.run { [weak self, markers, builtThistlethwaite] in
+                if let builtThistlethwaite {
+                    self?.thistlethwaiteSolver = builtThistlethwaite
+                }
                 self?.beginSolveSession(solution, stages: markers)
             }
+        }
+    }
+
+    /// Stage chips for the solution panel: one marker per non-empty
+    /// stage of a staged solution.
+    private nonisolated static func stageMarkers<Stage>(
+        of staged: StagedSolution<Stage>
+    ) -> [SolveSession.StageMarker] {
+        var start = 0
+        return staged.stages.compactMap { stage in
+            guard !stage.moves.isEmpty else { return nil }
+            defer { start += stage.moves.count }
+            return SolveSession.StageMarker(
+                name: stage.stage.displayName,
+                range: start..<(start + stage.moves.count))
         }
     }
 

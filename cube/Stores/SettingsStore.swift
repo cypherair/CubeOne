@@ -104,6 +104,9 @@ final class SettingsStore {
         /// Korf IDA* over pattern databases: provably shortest, takes
         /// minutes and requires prepared tables.
         case optimal
+        /// Thistlethwaite's four-phase group reduction: each phase
+        /// provably shortest within its move set.
+        case thistlethwaite
         /// Classic layer-by-layer, the way people learn: long but
         /// followable, with named stages.
         case beginner
@@ -113,6 +116,7 @@ final class SettingsStore {
             switch self {
             case .fast: "Fast"
             case .optimal: "Optimal"
+            case .thistlethwaite: "Thistlethwaite"
             case .beginner: "Beginner"
             }
         }
@@ -121,6 +125,7 @@ final class SettingsStore {
             switch self {
             case .fast: "~20 moves, found instantly"
             case .optimal: "Proven shortest — takes minutes, needs tables"
+            case .thistlethwaite: "Four phases, each provably shortest (~30–45 moves)"
             case .beginner: "Step by step, the way people learn (~200 moves)"
             }
         }
@@ -138,7 +143,11 @@ final class SettingsStore {
         var orbitSensitivity: Double?
         var rotationLock: Bool?
         var lockMode: LockMode?
-        var solvingMethod: SolvingMethod?
+        /// Stored as a raw string so a file written by a newer version
+        /// (with methods this build doesn't know) still decodes — an
+        /// unknown method falls back to `.fast` instead of throwing and
+        /// silently resetting every setting.
+        var solvingMethod: String?
         var twoFingerOrbit: Bool?
         var faceColors: [StoredColor]?
     }
@@ -199,7 +208,7 @@ final class SettingsStore {
         orbitSensitivity = snapshot.orbitSensitivity ?? 1.0
         lockMode = snapshot.lockMode
             ?? (snapshot.rotationLock == true ? .layersOnly : .free)
-        solvingMethod = snapshot.solvingMethod ?? .fast
+        solvingMethod = snapshot.solvingMethod.flatMap(SolvingMethod.init(rawValue:)) ?? .fast
         twoFingerOrbit = snapshot.twoFingerOrbit ?? false
         if let colors = snapshot.faceColors, colors.count == 6 {
             faceColors = colors
@@ -211,7 +220,7 @@ final class SettingsStore {
         let snapshot = Snapshot(
             soundEnabled: soundEnabled, hapticsEnabled: hapticsEnabled,
             turnSpeed: turnSpeed, orbitSensitivity: orbitSensitivity,
-            rotationLock: nil, lockMode: lockMode, solvingMethod: solvingMethod,
+            rotationLock: nil, lockMode: lockMode, solvingMethod: solvingMethod.rawValue,
             twoFingerOrbit: twoFingerOrbit, faceColors: faceColors)
         do {
             try FileManager.default.createDirectory(
