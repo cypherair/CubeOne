@@ -242,6 +242,11 @@ final class PatternDatabase: @unchecked Sendable {
         return Int((index & 1) == 0 ? byte & 0xF : byte >> 4)
     }
 
+    /// Base pointer of the nibble data, for hot-path lookups.
+    var nibbleBase: UnsafePointer<UInt8> {
+        UnsafePointer(buffer.bytes + Self.headerSize)
+    }
+
     func distance(of state: CubeState) -> Int {
         distance(atIndex: spec.index(of: state))
     }
@@ -295,6 +300,12 @@ public final class PatternDatabaseSet: @unchecked Sendable {
         tables = try PDBSpec.specs(for: tier).map { spec in
             try PatternDatabase(spec: spec, directory: directory)
         }
+    }
+
+    /// For tests: a set over arbitrary tables (e.g. tiny tiers).
+    init(tables: [PatternDatabase], tier: OptimalTableTier) {
+        self.tier = tier
+        self.tables = tables
     }
 
     /// Lower bound on the number of moves needed to solve `state`.
