@@ -40,6 +40,28 @@ The classic layer-by-layer method, seven stages, each emitting its moves into a 
 
 Algorithm conventions are *self-calibrating* where possible (e.g. the A-perm's fixed corner is computed from the cube algebra at startup, not assumed). Every loop has an iteration guard that throws instead of hanging. The test sweep solves 200 seeded random states and asserts the stage invariant after **every** stage, not just the end state.
 
+### OptimalSolver (proven-shortest solutions)
+
+Korf-style IDA* over **pattern databases**: nibble-packed tables holding the exact solve distance of three projections — all corner configurations (88M entries), and two overlapping edge subsets (7-edge tier: 2×511M entries ≈ 0.5 GB; 8-edge tier: 2×5.1B entries ≈ 4.8 GB). The heuristic is the max of the three lookups (admissible), so the first solution found by per-bound exhaustive deepening is provably optimal.
+
+Generation is a parallel scan BFS over a memory-mapped byte-per-entry scratch file (the OS pages it; no multi-GB allocations): forward passes expand entries at the current depth via per-move transforms hoisted per piece-arrangement, with the orientation transform reduced to a single XOR for edge tables. Same-value byte races between workers are benign; completeness is verified by an exact final scan. Tables are then nibble-packed with a versioned header and mmapped read-only for lookups — file-backed clean pages, so even the 8-edge tier is safe (if not fast) under iOS memory limits (the app carries the increased-memory-limit and extended-virtual-addressing entitlements).
+
+The search runs on a SIMD-backed `FastCube` with table-driven move application; canonical 3-move prefixes feed a shared work queue across the cores (one is left free for the UI) with an abort flag and per-bound barriers. The existing two-phase solver provides an instant upper bound: exhausting every depth below it proves *its* solution optimal.
+
+**Measured on the 16 GB M5 MacBook Air (release build, June 2026):**
+
+| What | Result |
+|---|---|
+| 7-edge bake (one-time) | ~2 min, 555 MB |
+| 8-edge bake (one-time) | ~75 min, 5.15 GB |
+| Search throughput | ~30–35M positions/s sustained |
+| Random cube, optimal 17, 7-edge tier | proven in ~1 min |
+| Random cube, optimal 18, 8-edge tier | d17 exhausted in ~5 min (9.5B positions); solution found and proven at ~15–20 min total |
+
+Memory stays healthy throughout: the tables are file-backed clean pages, so the app's footprint is the OS page cache doing its job, not dirty memory.
+
+Compressed LZFSE *seeds* of the tables can ship inside the app bundle (a build phase copies any present in the gitignored `Seeds/` folder); the loader installs from seeds before offering generation.
+
 ### SliceMove (M/E/S)
 
 `CubeState` fixes centers, but a real middle-slice turn moves them. The resolution: each slice move is defined by its **fixed-center equivalence** — an outer-turn pair plus a whole-cube reorientation:

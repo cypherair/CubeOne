@@ -55,8 +55,10 @@ public final class OptimalSolver: Sendable {
                 currentBound: bound, upperBound: upperBound,
                 nodesSearched: nodes.value, elapsed: clock.now - started))
 
-            // Periodic progress/cancellation pump while workers run.
-            let pump = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+            // Periodic progress/cancellation pump while workers run. On
+            // the main queue: global utility queues starve while the
+            // search saturates every core.
+            let pump = DispatchSource.makeTimerSource(queue: .main)
             pump.schedule(deadline: .now() + 0.25, repeating: 0.25)
             let boundForPump = bound
             pump.setEventHandler {
@@ -306,7 +308,8 @@ final class SearchEngine: @unchecked Sendable {
 
         let jobIndex = SharedCounter()
         let result = SharedResult()
-        let workers = max(1, ProcessInfo.processInfo.activeProcessorCount)
+        // Leave one core for the UI and the progress pump.
+        let workers = max(1, ProcessInfo.processInfo.activeProcessorCount - 1)
         DispatchQueue.concurrentPerform(iterations: workers) { _ in
             var path = [Int](repeating: 0, count: bound)
             var local: Int64 = 0

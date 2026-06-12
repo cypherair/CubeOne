@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The main play screen: the 3D cube with mode panels layered on top.
 struct PlayView: View {
-    let model: AppModel
+    @Bindable var model: AppModel
     @State private var showScramble = false
 
     var body: some View {
@@ -27,6 +27,9 @@ struct PlayView: View {
                         .padding(.bottom, 18)
                 } else if let timerSession = model.timerSession {
                     TimerOverlay(model: model, session: timerSession)
+                        .padding(.bottom, 18)
+                } else if let optimalSession = model.optimalSearch {
+                    OptimalSearchPanel(model: model, session: optimalSession)
                         .padding(.bottom, 18)
                 } else if showScramble, let scramble = model.lastScramble {
                     ScramblePanel(model: model, scramble: scramble, isPresented: $showScramble)
@@ -52,7 +55,13 @@ struct PlayView: View {
             .animation(.snappy, value: model.solveSession != nil)
             .animation(.snappy, value: model.editor != nil)
             .animation(.snappy, value: model.timerSession != nil)
+            .animation(.snappy, value: model.optimalSearch != nil)
             .animation(.snappy, value: showScramble)
+            .alert("Optimal tables needed", isPresented: $model.optimalTablesNeeded) {
+                Button("OK") {}
+            } message: {
+                Text("Prepare the optimal solver's tables in Settings › Solving first.")
+            }
 
             VStack {
                 HStack {

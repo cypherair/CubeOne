@@ -10,8 +10,9 @@ A Rubik's cube for iPhone, iPad, and Mac — play with a real-feeling 3D cube, s
 
 - **Play** — drag stickers to turn layers (middle slices included, with M/E/S notation), drag empty space or use two fingers to rotate the whole cube, pinch to zoom. Undo/redo, move history, sounds and haptics.
 - **Scramble** — WCA-style random-state scrambles, animated; review, replay, or copy the scramble afterwards.
-- **Solve** — two methods, selectable in Settings:
+- **Solve** — three methods, selectable in Settings:
   - *Fast*: Kociemba two-phase algorithm, ~20-move solutions found in milliseconds.
+  - *Optimal*: Korf-style search over pattern databases — a **provably shortest** solution, typically in seconds to minutes on a Mac (one-time table bake required).
   - *Beginner*: the classic layer-by-layer method in seven named stages (~150–250 moves), presented step by step so you can follow along and learn.
 - **Customize** — paint any cube sticker by sticker with live legality checking that explains exactly why an impossible cube is impossible ("a corner is twisted", "two pieces are swapped", …). Custom color schemes with presets and a live preview.
 - **Timer** — scramble, solve by hand, and the clock stops itself the moment the cube is solved. Personal bests and WCA-style averages in the Stats tab.

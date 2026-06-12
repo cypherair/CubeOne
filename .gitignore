@@ -8,5 +8,9 @@ build/
 .build/
 .swiftpm/
 
+# Pattern-database seeds (multi-GB reproducible artifacts; bundled by
+# a build phase when present, never committed)
+Seeds/
+
 # macOS
 .DS_Store

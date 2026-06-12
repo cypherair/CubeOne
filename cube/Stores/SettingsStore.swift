@@ -101,6 +101,9 @@ final class SettingsStore {
     enum SolvingMethod: String, Codable, CaseIterable, Identifiable {
         /// Kociemba two-phase: ~20 moves, found in milliseconds.
         case fast
+        /// Korf IDA* over pattern databases: provably shortest, takes
+        /// minutes and requires prepared tables.
+        case optimal
         /// Classic layer-by-layer, the way people learn: long but
         /// followable, with named stages.
         case beginner
@@ -108,8 +111,17 @@ final class SettingsStore {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .fast: "Fast (~20 moves)"
-            case .beginner: "Beginner (step by step)"
+            case .fast: "Fast"
+            case .optimal: "Optimal"
+            case .beginner: "Beginner"
+            }
+        }
+
+        var detail: String {
+            switch self {
+            case .fast: "~20 moves, found instantly"
+            case .optimal: "Proven shortest — takes minutes, needs tables"
+            case .beginner: "Step by step, the way people learn (~200 moves)"
             }
         }
     }

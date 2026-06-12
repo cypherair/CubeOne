@@ -58,6 +58,7 @@
 				000000000000000120000000 /* Sources */,
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
+				000000000000000150000000 /* Copy PDB Seeds */,
 			);
 			buildRules = (
 			);
@@ -116,6 +117,33 @@
 			);
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		000000000000000150000000 /* Copy PDB Seeds */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Seeds/optimal-corners.pdb.lzfse",
+				"$(SRCROOT)/Seeds/optimal-edges-a7.pdb.lzfse",
+				"$(SRCROOT)/Seeds/optimal-edges-b7.pdb.lzfse",
+				"$(SRCROOT)/Seeds/optimal-edges-a8.pdb.lzfse",
+				"$(SRCROOT)/Seeds/optimal-edges-b8.pdb.lzfse",
+			);
+			name = "Copy PDB Seeds";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/optimal-corners.pdb.lzfse",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/optimal-edges-a7.pdb.lzfse",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/optimal-edges-b7.pdb.lzfse",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/optimal-edges-a8.pdb.lzfse",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/optimal-edges-b8.pdb.lzfse",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Bundle any locally baked pattern-database seeds (gitignored;\n# produced by the in-app Prepare flow and synced via the documented\n# recipe). Missing seeds are fine - the app falls back to generating.\nSEEDS=\"$SRCROOT/Seeds\"\nDEST=\"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nfor name in optimal-corners.pdb.lzfse optimal-edges-a7.pdb.lzfse optimal-edges-b7.pdb.lzfse optimal-edges-a8.pdb.lzfse optimal-edges-b8.pdb.lzfse; do\n  if [ -f \"$SEEDS/$name\" ]; then\n    cp -f \"$SEEDS/$name\" \"$DEST/$name\"\n  fi\ndone\nexit 0\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		000000000000000120000000 /* Sources */ = {

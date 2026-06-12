@@ -38,6 +38,7 @@ final class AppModel {
     /// No session is active and the scene is settled.
     private var isFreePlay: Bool {
         scene.isIdle && solveSession == nil && editor == nil && timerSession == nil
+            && optimalSearch == nil
     }
 
     var canUndo: Bool { historyCursor > 0 && isFreePlay }
@@ -153,6 +154,70 @@ final class AppModel {
 
     // MARK: Solve session
 
+    // MARK: Optimal search session
+
+    /// A running optimal (proven-shortest) search.
+    struct OptimalSearchSession {
+        var currentBound: Int = 0
+        var upperBound: Int?
+        var nodesSearched: Int64 = 0
+        var elapsed: Duration = .zero
+    }
+
+    let optimalTables = OptimalTableManager()
+    private(set) var optimalSearch: OptimalSearchSession?
+    /// Set when the user picked Optimal but no tables are installed —
+    /// the UI routes them to the Solving settings page.
+    var optimalTablesNeeded = false
+    private var optimalCancelToken: CancelToken?
+
+    private func startOptimalSolve() {
+        guard let tier = optimalTables.bestReadyTier else {
+            optimalTablesNeeded = true
+            return
+        }
+        guard let solver, let databases = try? optimalTables.openDatabases(tier: tier) else {
+            optimalTablesNeeded = true
+            return
+        }
+        let optimal = OptimalSolver(databases: databases, upperBoundSolver: solver)
+        let token = CancelToken()
+        optimalCancelToken = token
+        optimalSearch = OptimalSearchSession()
+        scene.allowsDirectTurns = false
+        let state = cubeState
+        Task.detached(priority: .userInitiated) {
+            let solution = optimal.solve(
+                state,
+                progress: { progress in
+                    Task { @MainActor in
+                        guard self.optimalSearch != nil else { return }
+                        self.optimalSearch = OptimalSearchSession(
+                            currentBound: progress.currentBound,
+                            upperBound: progress.upperBound,
+                            nodesSearched: progress.nodesSearched,
+                            elapsed: progress.elapsed)
+                    }
+                },
+                isCancelled: { token.isCancelled })
+            await MainActor.run {
+                self.finishOptimalSolve(solution)
+            }
+        }
+    }
+
+    private func finishOptimalSolve(_ solution: [Move]?) {
+        optimalSearch = nil
+        optimalCancelToken = nil
+        scene.allowsDirectTurns = true
+        guard let solution, !solution.isEmpty else { return }
+        beginSolveSession(solution, stages: nil, isOptimal: true)
+    }
+
+    func cancelOptimalSolve() {
+        optimalCancelToken?.cancel()
+    }
+
     /// An active guided solution being played back on the cube.
     struct SolveSession {
         struct StageMarker {
@@ -164,6 +229,8 @@ final class AppModel {
         /// Present for beginner-method solutions: which stage each move
         /// index belongs to.
         let stages: [StageMarker]?
+        /// True when the solution is a proven shortest one.
+        var isOptimal = false
         var nextIndex = 0
         var isPlaying = false
         var isFinished: Bool { nextIndex >= solution.count }
@@ -182,6 +249,10 @@ final class AppModel {
 
     func startSolve() {
         guard canSolve, let solver else { return }
+        if settings.solvingMethod == .optimal {
+            startOptimalSolve()
+            return
+        }
         isComputingSolution = true
         let state = cubeState
         let method = settings.solvingMethod
@@ -189,7 +260,7 @@ final class AppModel {
             let solution: [Move]?
             var markers: [SolveSession.StageMarker]?
             switch method {
-            case .fast:
+            case .fast, .optimal:
                 solution = solver.solve(state, timeBudget: .milliseconds(300))
             case .beginner:
                 if let staged = BeginnerSolver().solve(state) {
@@ -212,7 +283,9 @@ final class AppModel {
         }
     }
 
-    private func beginSolveSession(_ solution: [Move]?, stages: [SolveSession.StageMarker]?) {
+    private func beginSolveSession(
+        _ solution: [Move]?, stages: [SolveSession.StageMarker]?, isOptimal: Bool = false
+    ) {
         isComputingSolution = false
         guard let solution, !solution.isEmpty, scene.isIdle else { return }
         // The guided solution takes over: previous undo history no longer
@@ -220,7 +293,7 @@ final class AppModel {
         history.removeAll()
         historyCursor = 0
         userMoveCount = 0
-        solveSession = SolveSession(solution: solution, stages: stages)
+        solveSession = SolveSession(solution: solution, stages: stages, isOptimal: isOptimal)
         scene.allowsDirectTurns = false
     }
 
