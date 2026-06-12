@@ -18,6 +18,9 @@ swift test --filter SolverTests          # one suite (also: BeginnerSolverTests,
 xcodebuild -project cubeone.xcodeproj -scheme cubeone -destination 'platform=macOS' build
 xcodebuild -project cubeone.xcodeproj -scheme cubeone -destination 'generic/platform=iOS Simulator' build
 
+# Headless table bake (CI or scripted local use)
+swift run -c release --package-path CubeKit cubekit-bake 7 /tmp/pdb
+
 # Run on iPhone simulator
 xcrun simctl boot <device-udid>
 xcrun simctl install <device-udid> <DerivedData>/Build/Products/Debug-iphonesimulator/cubeone.app
@@ -53,5 +56,6 @@ Key mechanisms to understand before touching play/scene code:
 ## Project decisions
 
 - `ENABLE_ENHANCED_SECURITY = NO` is deliberate (user-approved): with it on, Xcode 26 builds the app arm64e but Swift packages arm64, breaking every build that uses CubeKit. Re-evaluate at release time.
-- Workflow: each work chunk on a branch → PR → merge immediately. PR descriptions carry the design record (see #2–#15 for the full history).
+- Workflow: each work chunk on a branch → PR → merge immediately. PR descriptions carry the design record (see #2 onward for the full history).
+- CI (GitHub Actions, `macos-26` runners): every push/PR runs the release test suite and both app builds (unsigned). `bake-tables.yml` is a manual workflow that bakes PDB seeds on a runner for download into `Seeds/`. The repo is public under GPLv3 — keep license headers/notices intact.
 - Verification habit: beyond unit tests, changes to play/scene behavior are verified interactively (launch the macOS app and drive it; `simctl` screenshots for iOS layout). macOS swallows the first click on an unfocused window — click once to focus before clicking buttons.

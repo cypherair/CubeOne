@@ -1,0 +1,43 @@
+name: Bake pattern databases
+
+# Manually triggered: bakes the optimal solver's tables on a CI runner
+# and uploads the LZFSE seeds as a downloadable artifact. Drop the
+# downloaded files into the repo's Seeds/ folder to have local builds
+# bundle them automatically.
+#
+# The 7-edge tier takes minutes; the 8-edge tier several hours on a
+# standard runner (it is ~75 min on a 10-core M5).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Pattern database tier"
+        required: true
+        default: "7"
+        type: choice
+        options: ["7", "8"]
+
+jobs:
+  bake:
+    name: Bake ${{ inputs.tier }}-edge tier
+    runs-on: macos-26
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runner resources
+        run: |
+          sysctl -n hw.ncpu hw.memsize
+          df -h "$RUNNER_TEMP"
+      - name: Bake
+        run: >
+          swift run -c release --package-path CubeKit cubekit-bake
+          ${{ inputs.tier }} "$RUNNER_TEMP/pdb"
+      - name: Upload seeds
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdb-seeds-${{ inputs.tier }}-edge
+          path: ${{ runner.temp }}/pdb/seeds
+          retention-days: 30
+          # The seeds are already LZFSE-compressed.
+          compression-level: 0
