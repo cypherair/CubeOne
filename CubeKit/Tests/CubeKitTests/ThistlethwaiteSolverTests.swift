@@ -6,6 +6,11 @@ import Testing
     private var solver: ThistlethwaiteSolver {
         ThistlethwaiteSolver(tables: TestTables.thistlethwaite)
     }
+    private static let fastTestConfig = ThistlethwaiteOptimizationConfig(
+        beamWidth: 8, endpointCap: 24, phaseSlack: [0, 1, 1, 0])
+    private static var longSolverTestsEnabled: Bool {
+        ProcessInfo.processInfo.environment["CUBEKIT_LONG_SOLVER_TESTS"] == "1"
+    }
 
     /// Moves each phase may use, written out independently of the
     /// solver's own tables.
@@ -70,18 +75,133 @@ import Testing
             let solution = try #require(
                 solver.solve(start), "iteration \(iteration) returned nil")
             #expect(solution.stages.count == 4)
-            #expect(solution.moves.count <= 52, "iteration \(iteration) too long")
+            #expect(solution.moves.count <= 45, "iteration \(iteration) too long")
 
-            var state = start
-            for (phase, stage) in solution.stages.enumerated() {
-                #expect(
-                    stage.moves.allSatisfy { Self.phaseMoves[phase].contains($0) },
-                    "phase \(phase + 1) used a forbidden move at iteration \(iteration)")
-                state = state.applying(stage.moves)
-                checkInvariant(phase: phase, state: state, iteration: iteration)
-            }
-            #expect(state.isSolved, "iteration \(iteration) not solved")
+            checkSolution(solution, from: start, iteration: iteration)
         }
+    }
+
+    @Test func optimizedSolvedCubeMatchesClassicShape() throws {
+        let solution = try #require(solver.solveOptimized(.solved))
+        #expect(solution.stages.count == 4)
+        #expect(solution.stages.allSatisfy { $0.moves.isEmpty })
+    }
+
+    @Test func optimizedRejectsIllegalState() {
+        var state = CubeState.solved
+        state.cornerOrientation[0] = 1
+        #expect(solver.solveOptimized(state) == nil)
+    }
+
+    @Test func optimizedSolvesRandomStatesWithValidStages() throws {
+        var rng = SeededRandom(seed: 1982)
+        for iteration in 0..<40 {
+            let start = Scrambler.randomState(using: &rng)
+            let solution = try #require(
+                solver.solveOptimized(
+                    start, config: Self.fastTestConfig, timeBudget: .milliseconds(120)),
+                "iteration \(iteration) returned nil")
+            #expect(solution.stages.count == 4)
+            checkSolution(solution, from: start, iteration: iteration)
+            checkNoMergeableBoundary(solution, iteration: iteration)
+        }
+    }
+
+    @Test func optimizedIsNoLongerThanClassicBoundaryMergedOnSeededCorpus() throws {
+        var rng = SeededRandom(seed: 2718)
+        for iteration in 0..<40 {
+            let start = Scrambler.randomState(using: &rng)
+            let classic = try #require(solver.solve(start))
+            let classicMerged = solver.stageBoundaryMerged(classic)
+            let optimized = try #require(
+                solver.solveOptimized(
+                    start, config: Self.fastTestConfig, timeBudget: .milliseconds(120)))
+            #expect(
+                optimized.moves.count <= classicMerged.moves.count,
+                "iteration \(iteration): optimized \(optimized.moves.count) > classic \(classicMerged.moves.count)")
+        }
+    }
+
+#if !DEBUG
+    @Test func optimizedLengthDistributionIsHighTwentiesOnSeededCorpus() throws {
+        var rng = SeededRandom(seed: 0xC0DE)
+        var lengths: [Int] = []
+        for _ in 0..<40 {
+            let solution = try #require(
+                solver.solveOptimized(Scrambler.randomState(using: &rng), timeBudget: .milliseconds(600)))
+            lengths.append(solution.moves.count)
+        }
+        lengths.sort()
+        let median = lengths[lengths.count / 2]
+        let p90 = lengths[lengths.count * 90 / 100]
+        #expect(
+            median <= 27,
+            "optimized median \(median), p90 \(p90); lengths \(lengths)")
+    }
+
+    @Test func optimizedLongCorrectnessCorpusWhenEnabled() throws {
+        guard Self.longSolverTestsEnabled else { return }
+
+        var rng = SeededRandom(seed: 0x500)
+        for iteration in 0..<500 {
+            let start = Scrambler.randomState(using: &rng)
+            let solution = try #require(
+                solver.solveOptimized(start, timeBudget: .seconds(1)),
+                "iteration \(iteration) returned nil")
+            checkSolution(solution, from: start, iteration: iteration)
+            checkNoMergeableBoundary(solution, iteration: iteration)
+        }
+    }
+
+    @Test func optimizedLongReleaseBenchmarkWhenEnabled() throws {
+        guard Self.longSolverTestsEnabled else { return }
+
+        var rng = SeededRandom(seed: 0x1_000)
+        var lengths: [Int] = []
+        var milliseconds: [Double] = []
+        for iteration in 0..<1000 {
+            let start = Scrambler.randomState(using: &rng)
+            let begin = Date()
+            let solution = try #require(
+                solver.solveOptimized(start, timeBudget: .seconds(1)),
+                "iteration \(iteration) returned nil")
+            milliseconds.append(Date().timeIntervalSince(begin) * 1000)
+            lengths.append(solution.moves.count)
+        }
+
+        let sortedLengths = lengths.sorted()
+        let sortedTimes = milliseconds.sorted()
+        let average = Double(lengths.reduce(0, +)) / Double(lengths.count)
+        let median = Self.percentile(sortedLengths, 50)
+        let p90 = Self.percentile(sortedLengths, 90)
+        let p95 = Self.percentile(sortedLengths, 95)
+        let p95Milliseconds = Self.percentile(sortedTimes, 95)
+        let maximum = sortedLengths.last ?? 0
+        #expect(
+            median <= 27,
+            "avg \(average), median \(median), p90 \(p90), p95 \(p95), max \(maximum)")
+        #expect(
+            p95Milliseconds <= 1000,
+            "p95 solve time \(p95Milliseconds) ms; times \(sortedTimes)")
+    }
+#endif
+
+    @Test func stageBoundaryMergePreservesStageInvariants() throws {
+        let solutionMoves = [Move](notation: "F U F B R' F R F2 D' R B2 U B2 L L2 U R2 U B2 U2 L2 U' L2 D U2 R2 U2 R2 L2 F2 U2 R2 B2 U2 L2")!
+        let start = CubeState.solved.applying(solutionMoves.inverse)
+        let solution = try #require(solver.solve(start))
+        let merged = solver.stageBoundaryMerged(solution)
+        #expect(merged.moves.count <= solution.moves.count)
+        checkSolution(merged, from: start, iteration: 0)
+        checkNoMergeableBoundary(merged, iteration: 0)
+    }
+
+    @Test func tableReachabilityMatchesExpectedPhaseSpaces() {
+        let tables = TestTables.thistlethwaite
+        #expect(!tables.phase1.contains(-1))
+        #expect(!tables.phase2.contains(-1))
+        #expect(!tables.phase3.contains(-1))
+        #expect(tables.phase4.lazy.filter { $0 >= 0 }.count == ThistlethwaiteTables.phase4Count / 2)
     }
 
     private func checkInvariant(
@@ -103,6 +223,51 @@ import Testing
         #expect(
             holds, "phase \(phase + 1) invariant failed at iteration \(iteration)",
             sourceLocation: sourceLocation)
+    }
+
+    private func checkSolution(
+        _ solution: StagedSolution<ThistlethwaiteStage>,
+        from start: CubeState,
+        iteration: Int,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        var state = start
+        for (phase, stage) in solution.stages.enumerated() {
+            #expect(
+                stage.moves.allSatisfy { Self.phaseMoves[phase].contains($0) },
+                "phase \(phase + 1) used a forbidden move at iteration \(iteration)",
+                sourceLocation: sourceLocation)
+            state = state.applying(stage.moves)
+            checkInvariant(
+                phase: phase, state: state, iteration: iteration,
+                sourceLocation: sourceLocation)
+        }
+        #expect(state.isSolved, "iteration \(iteration) not solved", sourceLocation: sourceLocation)
+    }
+
+    private func checkNoMergeableBoundary(
+        _ solution: StagedSolution<ThistlethwaiteStage>,
+        iteration: Int,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        var previous: Move?
+        for stage in solution.stages where !stage.moves.isEmpty {
+            if let previous, let first = stage.moves.first {
+                #expect(
+                    previous.face != first.face,
+                    "mergeable boundary before \(stage.stage.displayName) at iteration \(iteration)",
+                    sourceLocation: sourceLocation)
+            }
+            previous = stage.moves.last
+        }
+    }
+
+    private static func percentile(_ sorted: [Int], _ percentile: Int) -> Int {
+        sorted[min(sorted.count - 1, sorted.count * percentile / 100)]
+    }
+
+    private static func percentile(_ sorted: [Double], _ percentile: Int) -> Double {
+        sorted[min(sorted.count - 1, sorted.count * percentile / 100)]
     }
 
     @Test func cachedTablesMatchGenerated() throws {

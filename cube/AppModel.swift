@@ -268,12 +268,15 @@ final class AppModel {
             switch method {
             case .fast, .optimal:
                 solution = solver.solve(state, timeBudget: .milliseconds(300))
-            case .thistlethwaite:
+            case .thistlethwaite, .thistlethwaiteOptimized:
                 let thistlethwaite = prebuiltThistlethwaite
                     ?? (try? ThistlethwaiteTables.cached(in: directory))
                         .map(ThistlethwaiteSolver.init)
                 builtThistlethwaite = thistlethwaite
-                if let staged = thistlethwaite?.solve(state) {
+                let staged = method == .thistlethwaiteOptimized
+                    ? thistlethwaite?.solveOptimized(state, timeBudget: .seconds(1))
+                    : thistlethwaite?.solve(state)
+                if let staged {
                     solution = staged.moves
                     markers = Self.stageMarkers(of: staged)
                 } else {
