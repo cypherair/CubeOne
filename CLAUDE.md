@@ -36,7 +36,7 @@ Optimal-solver pattern databases are baked in-app (Settings › Solving): the 7-
 
 Two layers with a hard boundary:
 
-- **CubeKit/** — local Swift package, zero UI dependencies, all cube logic. `CubeState` is the cubie-level source of truth (corner/edge permutation + orientation, centers fixed). `FaceletCube` is the 54-sticker view with legality validation. Solvers: `KociembaSolver` (two-phase, coordinate tables cached on disk, time-budgeted search) and `BeginnerSolver` (layer-by-layer, returns a `StagedSolution`). Everything here is unit-tested; UI code never mutates cube state directly.
+- **CubeKit/** — local Swift package, zero UI dependencies, all cube logic. `CubeState` is the cubie-level source of truth (corner/edge permutation + orientation, centers fixed). `FaceletCube` is the 54-sticker view with legality validation. Solvers: `KociembaSolver` (two-phase, coordinate tables cached on disk, time-budgeted search), `ThistlethwaiteSolver` (four-phase group reduction, greedy descent over BFS distance tables, each phase provably shortest), and `BeginnerSolver` (layer-by-layer). The staged solvers return a `StagedSolution<StageKind>` (generic over the stage enum). Everything here is unit-tested; UI code never mutates cube state directly.
 - **cube/** — the app target (folder-synchronized Xcode group; new files under `cube/` join the target automatically). `AppModel` owns the logical state; `CubeSceneController` owns the RealityKit scene. The scene *renders and animates*; every completed turn flows back through `onMoveCommitted` into `AppModel.commit`, which is the only place `cubeState` advances.
 
 Key mechanisms to understand before touching play/scene code:

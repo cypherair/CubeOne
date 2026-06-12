@@ -40,6 +40,16 @@ The classic layer-by-layer method, seven stages, each emitting its moves into a 
 
 Algorithm conventions are *self-calibrating* where possible (e.g. the A-perm's fixed corner is computed from the cube algebra at startup, not assumed). Every loop has an iteration guard that throws instead of hanging. The test sweep solves 200 seeded random states and asserts the stage invariant after **every** stage, not just the end state.
 
+### ThistlethwaiteSolver (four-phase group reduction)
+
+Thistlethwaite's 1981 algorithm: restrict the move set in four steps, each landing the cube in a smaller subgroup — G0 ⊃ G1 = ⟨U, D, L, R, F2, B2⟩ ⊃ G2 = ⟨U, D, R2, L2, F2, B2⟩ ⊃ G3 = ⟨U2, D2, R2, L2, F2, B2⟩ ⊃ solved. Each phase has its own exact BFS distance table over a small coordinate, so solving is a **greedy descent**: from distance d, apply any allowed move whose table entry reads d − 1. Every phase move set is closed under inverses, so the move graph is undirected and such a move always exists — each phase comes out provably shortest for its goal. The known worst cases are 7 + 10 + 13 + 15 = 45 moves (the test suite pins all four maxima); typical solves run ~30–45.
+
+Per-phase coordinates: ① edge flip (2048); ② corner twist × slice-edge locations (2187 × 495); ③ corner permutation × M-edge separation (40320 × C(8,4)); ④ within the square group, the 96 half-turn-reachable corner permutations × the three within-slice edge permutations (96 × 24³, of which exactly half is reachable — half turns are even permutations).
+
+Phase 3's goal is the subtle one (Thistlethwaite's "tetrad twist" condition). Instead of deriving it by hand, the table seeds a **multi-source BFS from the whole goal coset**: every half-turn-reachable corner permutation with the M edges home is distance 0. That is provably the exact G3 membership test for a G2 state — legality ties edge parity to corner parity, and 96 × 6912 matches the square group's order exactly.
+
+All four tables (~5 MB) generate in about a second (release) and cache as `thistlethwaite-tables.bin` in Application Support, built lazily on the first Thistlethwaite solve. Playback shows the four named stages just like the beginner method (`StagedSolution` is generic over the stage kind: `StagedSolution<ThistlethwaiteStage>`).
+
 ### OptimalSolver (proven-shortest solutions)
 
 Korf-style IDA* over **pattern databases**: nibble-packed tables holding the exact solve distance of three projections — all corner configurations (88M entries), and two overlapping edge subsets (7-edge tier: 2×511M entries ≈ 0.5 GB; 8-edge tier: 2×5.1B entries ≈ 4.8 GB). The heuristic is the max of the three lookups (admissible), so the first solution found by per-bound exhaustive deepening is provably optimal.

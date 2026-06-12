@@ -35,7 +35,7 @@ public final class SolverTables: Sendable {
         // basic moves, flattened for the generators.
         let moves = CubeState.basicMoves
 
-        twistMove = Self.buildOrientationTable(
+        twistMove = TableBuilder.orientationTable(
             count: Coordinates.twistCount, pieceCount: 8, modulus: 3,
             decode: Coordinates.cornerOrientations(forTwist:),
             encode: { orientations in
@@ -47,7 +47,7 @@ public final class SolverTables: Sendable {
             moveOrientation: { moves[$0].cornerOrientation }
         )
 
-        flipMove = Self.buildOrientationTable(
+        flipMove = TableBuilder.orientationTable(
             count: Coordinates.flipCount, pieceCount: 12, modulus: 2,
             decode: Coordinates.edgeOrientations(forFlip:),
             encode: { orientations in
@@ -61,50 +61,29 @@ public final class SolverTables: Sendable {
 
         // Slice table: representative places slice edges at the ranked
         // positions; the filler arrangement is irrelevant to the result.
-        var sliceTable = [UInt16](repeating: 0, count: Coordinates.sliceCount * 18)
-        for coordinate in 0..<Coordinates.sliceCount {
-            let positions = Set(Coordinates.slicePositions(forSlice: coordinate))
-            var permutation = [Int](repeating: 0, count: 12)
-            var nextSlice = 8
-            var nextOther = 0
-            for slot in 0..<12 {
-                if positions.contains(slot) {
-                    permutation[slot] = nextSlice
-                    nextSlice += 1
-                } else {
-                    permutation[slot] = nextOther
-                    nextOther += 1
-                }
-            }
-            for move in 0..<18 {
-                let moved = Self.permutationApplying(
-                    permutation, moves[move / 3].edgePermutation, times: move % 3 + 1)
-                var rank = 0
-                var found = 0
-                for slot in 0..<12 where moved[slot] >= 8 {
-                    found += 1
-                    rank += Coordinates.binomial[slot][found]
-                }
-                sliceTable[coordinate * 18 + move] = UInt16(rank)
-            }
-        }
-        sliceMove = sliceTable
+        sliceMove = TableBuilder.occupancyTable(
+            slotCount: 12, markerCount: 4, totalSlots: 12, moves: Array(0..<18),
+            movePermutation: { moves[$0].edgePermutation }
+        )
 
-        cornerPermutationMove = Self.buildPermutationTable(
+        cornerPermutationMove = TableBuilder.permutationTable(
             count: Coordinates.cornerPermutationCount, pieceCount: 8,
+            moves: Self.phase2Moves,
             movePermutation: { moves[$0].cornerPermutation },
             project: { $0 }, embed: { $0 }
         )
 
-        udEdgePermutationMove = Self.buildPermutationTable(
+        udEdgePermutationMove = TableBuilder.permutationTable(
             count: Coordinates.udEdgePermutationCount, pieceCount: 8,
+            moves: Self.phase2Moves,
             movePermutation: { moves[$0].edgePermutation },
             project: { Array($0[0..<8]) },
             embed: { $0 + [8, 9, 10, 11] }
         )
 
-        sliceEdgePermutationMove = Self.buildPermutationTable(
+        sliceEdgePermutationMove = TableBuilder.permutationTable(
             count: Coordinates.sliceEdgePermutationCount, pieceCount: 4,
+            moves: Self.phase2Moves,
             movePermutation: { moves[$0].edgePermutation },
             project: { $0[8..<12].map { $0 - 8 } },
             embed: { Array(0..<8) + $0.map { $0 + 8 } }
@@ -118,10 +97,10 @@ public final class SolverTables: Sendable {
         let udEdgePermutationMove = self.udEdgePermutationMove
         let sliceEdgePermutationMove = self.sliceEdgePermutationMove
 
-        prune1SliceFlip = Self.breadthFirstDistances(
+        prune1SliceFlip = TableBuilder.breadthFirstDistances(
             stateCount: Coordinates.sliceCount * Coordinates.flipCount,
             moveCount: 18,
-            start: Coordinates.solvedSlice * Coordinates.flipCount
+            starts: [Coordinates.solvedSlice * Coordinates.flipCount]
         ) { state, move in
             let slice = state / Coordinates.flipCount
             let flip = state % Coordinates.flipCount
@@ -129,10 +108,10 @@ public final class SolverTables: Sendable {
                 + Int(flipMove[flip * 18 + move])
         }
 
-        prune1SliceTwist = Self.breadthFirstDistances(
+        prune1SliceTwist = TableBuilder.breadthFirstDistances(
             stateCount: Coordinates.sliceCount * Coordinates.twistCount,
             moveCount: 18,
-            start: Coordinates.solvedSlice * Coordinates.twistCount
+            starts: [Coordinates.solvedSlice * Coordinates.twistCount]
         ) { state, move in
             let slice = state / Coordinates.twistCount
             let twist = state % Coordinates.twistCount
@@ -140,10 +119,10 @@ public final class SolverTables: Sendable {
                 + Int(twistMove[twist * 18 + move])
         }
 
-        prune2SliceCorner = Self.breadthFirstDistances(
+        prune2SliceCorner = TableBuilder.breadthFirstDistances(
             stateCount: Coordinates.sliceEdgePermutationCount * Coordinates.cornerPermutationCount,
             moveCount: 10,
-            start: 0
+            starts: [0]
         ) { state, move in
             let slicePerm = state / Coordinates.cornerPermutationCount
             let cornerPerm = state % Coordinates.cornerPermutationCount
@@ -152,10 +131,10 @@ public final class SolverTables: Sendable {
                 + Int(cornerPermutationMove[cornerPerm * 10 + move])
         }
 
-        prune2SliceEdge = Self.breadthFirstDistances(
+        prune2SliceEdge = TableBuilder.breadthFirstDistances(
             stateCount: Coordinates.sliceEdgePermutationCount * Coordinates.udEdgePermutationCount,
             moveCount: 10,
-            start: 0
+            starts: [0]
         ) { state, move in
             let slicePerm = state / Coordinates.udEdgePermutationCount
             let edgePerm = state % Coordinates.udEdgePermutationCount
@@ -182,93 +161,6 @@ public final class SolverTables: Sendable {
         self.prune1SliceTwist = prune1SliceTwist
         self.prune2SliceCorner = prune2SliceCorner
         self.prune2SliceEdge = prune2SliceEdge
-    }
-
-    // MARK: Generation helpers
-
-    private static func permutationApplying(
-        _ permutation: [Int], _ movePermutation: [Int], times: Int
-    ) -> [Int] {
-        var result = permutation
-        for _ in 0..<times {
-            var next = result
-            for i in 0..<result.count { next[i] = result[movePermutation[i]] }
-            result = next
-        }
-        return result
-    }
-
-    private static func buildOrientationTable(
-        count: Int, pieceCount: Int, modulus: Int,
-        decode: (Int) -> [Int], encode: ([Int]) -> Int,
-        movePermutation: (Int) -> [Int], moveOrientation: (Int) -> [Int]
-    ) -> [UInt16] {
-        var table = [UInt16](repeating: 0, count: count * 18)
-        for coordinate in 0..<count {
-            let orientations = decode(coordinate)
-            for move in 0..<18 {
-                let face = move / 3
-                let permutation = movePermutation(face)
-                let orientation = moveOrientation(face)
-                var current = orientations
-                for _ in 0..<(move % 3 + 1) {
-                    var next = current
-                    for i in 0..<pieceCount {
-                        next[i] = (current[permutation[i]] + orientation[i]) % modulus
-                    }
-                    current = next
-                }
-                table[coordinate * 18 + move] = UInt16(encode(current))
-            }
-        }
-        return table
-    }
-
-    /// Builds a phase-2 permutation move table. `project` extracts the
-    /// ranked sub-permutation from a full arrangement; `embed` rebuilds a
-    /// representative full arrangement from it.
-    private static func buildPermutationTable(
-        count: Int, pieceCount: Int,
-        movePermutation: (Int) -> [Int],
-        project: ([Int]) -> [Int], embed: ([Int]) -> [Int]
-    ) -> [UInt16] {
-        var table = [UInt16](repeating: 0, count: count * 10)
-        for coordinate in 0..<count {
-            let full = embed(Coordinates.unrankPermutation(coordinate, count: pieceCount))
-            for (index, moveValue) in phase2Moves.enumerated() {
-                let moved = permutationApplying(
-                    full, movePermutation(moveValue / 3), times: moveValue % 3 + 1)
-                table[coordinate * 10 + index] =
-                    UInt16(Coordinates.rankPermutation(project(moved)))
-            }
-        }
-        return table
-    }
-
-    private static func breadthFirstDistances(
-        stateCount: Int, moveCount: Int, start: Int,
-        neighbor: (Int, Int) -> Int
-    ) -> [Int8] {
-        var distances = [Int8](repeating: -1, count: stateCount)
-        var queue = [Int32]()
-        queue.reserveCapacity(stateCount)
-        distances[start] = 0
-        queue.append(Int32(start))
-        var head = 0
-        while head < queue.count {
-            let state = Int(queue[head])
-            head += 1
-            let next = distances[state] + 1
-            for move in 0..<moveCount {
-                let target = neighbor(state, move)
-                if distances[target] < 0 {
-                    distances[target] = next
-                    queue.append(Int32(target))
-                }
-            }
-        }
-        assert(!distances.contains(-1), "pruning table has unreachable states")
-        return distances
     }
 
     // MARK: Disk cache
