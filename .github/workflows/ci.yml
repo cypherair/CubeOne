@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  engine-tests:
+    name: CubeKit tests (release)
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Run tests
+        run: swift test -c release --package-path CubeKit
+
+  app-build:
+    name: App builds
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build macOS app
+        run: >
+          xcodebuild -project cubeone.xcodeproj -scheme cubeone
+          -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO build
+      - name: Build iOS app
+        run: >
+          xcodebuild -project cubeone.xcodeproj -scheme cubeone
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build

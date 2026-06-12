@@ -9,9 +9,11 @@ let package = Package(
     ],
     products: [
         .library(name: "CubeKit", targets: ["CubeKit"]),
+        .executable(name: "cubekit-bake", targets: ["CubeKitBake"]),
     ],
     targets: [
         .target(name: "CubeKit"),
+        .executableTarget(name: "CubeKitBake", dependencies: ["CubeKit"]),
         .testTarget(name: "CubeKitTests", dependencies: ["CubeKit"]),
     ]
 )

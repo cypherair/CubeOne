@@ -46,4 +46,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the interesting parts: how 
 
 ## Project history
 
-The app was built in reviewed milestones; each pull request (#2–#15) documents the design decisions of its slice of the app, from the cube model and solvers through gestures, navigation, and polish.
+The app was built in reviewed milestones; each pull request documents the design decisions of its slice of the app, from the cube model and solvers through gestures, navigation, the optimal solver, and polish.
+
+## License
+
+Cube One is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License v3.0** (or any later version). See [LICENSE](LICENSE) for the full text.
+
+Copyright © 2026 cypherair.
