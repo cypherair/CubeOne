@@ -75,21 +75,9 @@ private struct Worker {
         currentMoves = []
     }
 
-    /// Merges adjacent same-face turns (R R → R2, R R' → nothing).
+    /// Merges adjacent same-face turns (shared helper).
     private static func merged(_ moves: [Move]) -> [Move] {
-        var result: [Move] = []
-        for move in moves {
-            if let last = result.last, last.face == move.face {
-                let turns = (last.quarterTurns + move.quarterTurns) % 4
-                result.removeLast()
-                if turns != 0 {
-                    result.append(Move(face: move.face, quarterTurns: turns))
-                }
-            } else {
-                result.append(move)
-            }
-        }
-        return result
+        moves.merged()
     }
 
     // MARK: Move plumbing
@@ -110,26 +98,9 @@ private struct Worker {
         if k > 0 { perform([Move(face: .up, quarterTurns: k)]) }
     }
 
-    /// Conjugates a sequence by k whole-cube y-rotations: the algorithm
-    /// performed as if the cube had been rotated about the U axis.
-    /// Calibrated so that slot indices (corners urf→ufl→ulb→ubr, edges
-    /// ur→uf→ul→ub) shift by +k, matching the U-turn piece cycle.
+    /// Conjugates a sequence by k whole-cube y-rotations (shared helper).
     private static func rotatedY(_ moves: [Move], times: Int) -> [Move] {
-        let k = ((times % 4) + 4) % 4
-        guard k > 0 else { return moves }
-        // One y step maps the face that was Front to where U sends front
-        // pieces: F→L→B→R→F (U and D unchanged).
-        let map: [Face: Face] = [.front: .left, .left: .back, .back: .right, .right: .front]
-        var result = moves
-        for _ in 0..<k {
-            result = result.map { move in
-                if let mapped = map[move.face] {
-                    return Move(face: mapped, quarterTurns: move.quarterTurns)
-                }
-                return move
-            }
-        }
-        return result
+        moves.rotatedY(times: times)
     }
 
     // MARK: Piece queries
@@ -154,19 +125,8 @@ private struct Worker {
 
     // MARK: Per-move piece actions (for the searches)
 
-    /// edgeAction[move][slot*2+ori] = newSlot*2 + newOri
-    private static let edgeAction: [[Int]] = Move.allCases.map { move in
-        let cube = CubeState.solved.applying(move)
-        var table = [Int](repeating: 0, count: 24)
-        for slot in 0..<12 {
-            // The piece that was at `from` is now at `slot`.
-            let from = cube.edgePermutation[slot]
-            for ori in 0..<2 {
-                table[from * 2 + ori] = slot * 2 + ((ori + cube.edgeOrientation[slot]) % 2)
-            }
-        }
-        return table
-    }
+    /// edgeAction[move][slot*2+ori] = newSlot*2 + newOri (shared table)
+    private static let edgeAction: [[Int]] = PieceAction.edge
 
     private static func edgeCode(_ location: (slot: Int, ori: Int)) -> Int {
         location.slot * 2 + location.ori
