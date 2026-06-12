@@ -279,6 +279,13 @@ final class AppModel {
                 } else {
                     solution = nil
                 }
+            case .cfop:
+                if let staged = CFOPSolver().solve(state) {
+                    solution = staged.moves
+                    markers = Self.stageMarkers(of: staged)
+                } else {
+                    solution = nil
+                }
             case .beginner:
                 if let staged = BeginnerSolver().solve(state) {
                     solution = staged.moves

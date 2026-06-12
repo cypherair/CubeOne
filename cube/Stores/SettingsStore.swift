@@ -107,6 +107,9 @@ final class SettingsStore {
         /// Thistlethwaite's four-phase group reduction: each phase
         /// provably shortest within its move set.
         case thistlethwaite
+        /// The speedcubing method: cross, F2L pairs, then the full
+        /// OLL/PLL algorithm sets with named cases.
+        case cfop
         /// Classic layer-by-layer, the way people learn: long but
         /// followable, with named stages.
         case beginner
@@ -117,6 +120,7 @@ final class SettingsStore {
             case .fast: "Fast"
             case .optimal: "Optimal"
             case .thistlethwaite: "Thistlethwaite"
+            case .cfop: "CFOP"
             case .beginner: "Beginner"
             }
         }
@@ -126,6 +130,7 @@ final class SettingsStore {
             case .fast: "~20 moves, found instantly"
             case .optimal: "Proven shortest — takes minutes, needs tables"
             case .thistlethwaite: "Four phases, each provably shortest (~30–45 moves)"
+            case .cfop: "Cross, F2L, OLL, PLL — the speedcuber's way (~60 moves)"
             case .beginner: "Step by step, the way people learn (~200 moves)"
             }
         }

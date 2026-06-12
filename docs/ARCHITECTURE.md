@@ -50,6 +50,15 @@ Phase 3's goal is the subtle one (Thistlethwaite's "tetrad twist" condition). In
 
 All four tables (~5 MB) generate in about a second (release) and cache as `thistlethwaite-tables.bin` in Application Support, built lazily on the first Thistlethwaite solve. Playback shows the four named stages just like the beginner method (`StagedSolution` is generic over the stage kind: `StagedSolution<ThistlethwaiteStage>`).
 
+### CFOPSolver (the speedcuber's method)
+
+Cross, four F2L pairs, full OLL (57 cases), full PLL (21 cases) — staged playback carries the recognized case names ("OLL 27 (Sune)", "PLL · T"). Average solution ~60 moves.
+
+- **Cross** is table-optimal: an exact BFS distance table over the four cross edges (P(12,4) · 2⁴ = 190,080 entries, built once per process in milliseconds) drives a greedy descent — never more than 8 moves.
+- **F2L** is a per-pair Dijkstra over the tracked corner+edge state (24 × 24 codes) with an alphabet of the standard triggers: U turns, the slot's six inserts (R U R' family and F' U F family, y-conjugated per slot), and pop-out triggers for the other unsolved slots. Every macro provably preserves the cross and all solved pairs, so any path is clean by construction — no 41-case table to transcribe, and the output still reads like human F2L. Pairs are inserted in greedy order (cheapest next).
+- **OLL/PLL** are the full hand-transcribed algorithm sets, but nothing rests on transcription: recognition keys are *derived from the algorithms* (the case an algorithm solves is the state its inverse produces), and the validation suite checks every entry for parseability and first-two-layer preservation, asserts case uniqueness, and proves exhaustive coverage of all 216 last-layer orientation patterns and all 288 permutation states. OLL recognizes by orientation-pattern lookup under the four U rotations; PLL recognizes by trial (pre-AUF × algorithm × post-AUF).
+- Algorithms are written in **extended notation** — wide turns, M/E/S slices, x/y/z rotations — exactly as standard sheets print them; `ExtendedNotation` expands them to outer turns using the same fixed-center equivalences as the scene (M ≙ L′ R + x′ …), tracking the cumulative frame so letters after a rotation land on the right faces. The net frame must end as identity or a pure y-rotation (anything else would tilt the U axis and change the algorithm's meaning); anchor tests pin the expansion (M2 U M2 U2 M2 U M2 must equal the H-perm).
+
 ### OptimalSolver (proven-shortest solutions)
 
 Korf-style IDA* over **pattern databases**: nibble-packed tables holding the exact solve distance of three projections — all corner configurations (88M entries), and two overlapping edge subsets (7-edge tier: 2×511M entries ≈ 0.5 GB; 8-edge tier: 2×5.1B entries ≈ 4.8 GB). The heuristic is the max of the three lookups (admissible), so the first solution found by per-bound exhaustive deepening is provably optimal.
