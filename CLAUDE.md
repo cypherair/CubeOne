@@ -30,7 +30,7 @@ xcrun simctl io <device-udid> screenshot /tmp/shot.png   # no screen-recording p
 
 Debug builds run the solver and its table generation ~10–30× slower (first-launch table generation: ~20 s debug vs ~0.2 s release). That is not a hang. Always validate performance claims with `-c release`.
 
-Optimal-solver pattern databases are baked in-app (Settings › Solving): the 7-edge tier (~0.5 GB) takes ~2 min on an M5, the 8-edge tier (~5.15 GB) ~75 min, both cached in the app container. The gitignored `Seeds/` folder at the repo root is bundled by a build phase when present (compressed seeds; produced via the in-app bake, synced manually from the container's `Seeds/` export). Tables are reproducible artifacts — never commit them.
+Optimal-solver pattern databases are baked in-app (Settings › Solving): the 7-edge tier (~0.5 GB) takes ~2 min on an M5, the 8-edge tier (~5.15 GB) ~75 min, both cached in the app container. The gitignored `Seeds/` folder at the repo root is bundled **only by the `cubeone-seeded` scheme** (its `Release-Seeded` configuration sets `INCLUDE_PDB_SEEDS=YES`); the regular `cubeone` scheme skips the ~2.3 GB copy so daily builds stay small. Archive with `cubeone-seeded` to ship bundled tables. Both schemes are shared (`xcshareddata/xcschemes`) — Xcode no longer auto-generates schemes for this project. Tables are reproducible artifacts — never commit them (the `bake-tables.yml` workflow can rebuild seeds on CI; cross-machine bakes verified byte-identical).
 
 ## Architecture
 
