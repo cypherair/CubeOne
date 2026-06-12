@@ -156,7 +156,10 @@
 				"DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"",
 				"for name in optimal-corners.pdb.lzfse optimal-edges-a7.pdb.lzfse optimal-edges-b7.pdb.lzfse optimal-edges-a8.pdb.lzfse optimal-edges-b8.pdb.lzfse; do",
 				"  if [ -f \"$SEEDS/$name\" ]; then",
-				"    cp -f \"$SEEDS/$name\" \"$DEST/$name\"",
+				"    # -X: drop extended attributes. Seeds downloaded from CI carry",
+				"    # com.apple.quarantine, which App Store validation rejects",
+				"    # (ITMS-91109) if it reaches the bundle.",
+				"    cp -fX \"$SEEDS/$name\" \"$DEST/$name\"",
 				"  fi",
 				"done",
 				"exit 0",
@@ -377,7 +380,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = cube/cube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11000;
+				CURRENT_PROJECT_VERSION = 11001;
 				DEVELOPMENT_TEAM = 7P9PPXP2SF;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_ENHANCED_SECURITY = NO;
@@ -423,7 +426,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = cube/cube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11000;
+				CURRENT_PROJECT_VERSION = 11001;
 				DEVELOPMENT_TEAM = 7P9PPXP2SF;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_ENHANCED_SECURITY = NO;
@@ -469,7 +472,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = cube/cube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11000;
+				CURRENT_PROJECT_VERSION = 11001;
 				DEVELOPMENT_TEAM = 7P9PPXP2SF;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_ENHANCED_SECURITY = NO;
